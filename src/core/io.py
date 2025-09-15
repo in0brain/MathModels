@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-import os, json, joblib, pandas as pd
+import os
+import json
+import joblib
+import pandas as pd  # 在顶部统一导入
 
 def ensure_dir(path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -8,7 +11,7 @@ def read_table(path: str) -> pd.DataFrame:
     if path.endswith(".csv"):
         return pd.read_csv(path)
     if path.endswith(".xlsx") or path.endswith(".xls"):
-        import pandas as pd
+        # 移除这里的重复导入，使用顶部已导入的pd
         return pd.read_excel(path)
     if path.endswith(".parquet"):
         return pd.read_parquet(path)

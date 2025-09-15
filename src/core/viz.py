@@ -77,3 +77,56 @@ def plot_pred_scatter(y_true, y_pred, out_png, dpi=160):
     ax.set_title("Prediction vs True")
     _ensure_dir(out_png); fig.savefig(out_png, dpi=dpi, bbox_inches="tight"); plt.close(fig)
     return out_png
+
+
+# 神经网络
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, confusion_matrix
+
+def plot_roc(y_true, proba, classes, out_png, dpi=160):
+    fig, ax = plt.subplots()
+    y_true = np.asarray(y_true)
+    if proba.shape[1] == 2:
+        fpr, tpr, _ = roc_curve(y_true, proba[:,1])
+        ax.plot(fpr, tpr, label=f"AUC={auc(fpr,tpr):.3f}")
+    else:
+        # 多类：一对多
+        for i, c in enumerate(classes):
+            y_bin = (y_true == c).astype(int)
+            fpr, tpr, _ = roc_curve(y_bin, proba[:, i])
+            ax.plot(fpr, tpr, label=f"class {c} AUC={auc(fpr,tpr):.3f}")
+    ax.plot([0,1],[0,1],"--")
+    ax.set_xlabel("FPR"); ax.set_ylabel("TPR"); ax.set_title("ROC")
+    ax.legend(fontsize=8)
+    _ensure_dir(out_png); fig.savefig(out_png, dpi=dpi, bbox_inches="tight"); plt.close(fig)
+    return out_png
+
+def plot_pr(y_true, proba, classes, out_png, dpi=160):
+    fig, ax = plt.subplots()
+    y_true = np.asarray(y_true)
+    if proba.shape[1] == 2:
+        prec, rec, _ = precision_recall_curve(y_true, proba[:,1])
+        ax.plot(rec, prec)
+    else:
+        for i, c in enumerate(classes):
+            y_bin = (y_true == c).astype(int)
+            prec, rec, _ = precision_recall_curve(y_bin, proba[:, i])
+            ax.plot(rec, prec, label=f"class {c}")
+        ax.legend(fontsize=8)
+    ax.set_xlabel("Recall"); ax.set_ylabel("Precision"); ax.set_title("PR Curve")
+    _ensure_dir(out_png); fig.savefig(out_png, dpi=dpi, bbox_inches="tight"); plt.close(fig)
+    return out_png
+
+def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160):
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation="nearest", aspect="auto")
+    ax.set_xticks(range(len(classes))); ax.set_yticks(range(len(classes)))
+    ax.set_xticklabels(classes, rotation=45, ha="right"); ax.set_yticklabels(classes)
+    ax.set_xlabel("Predicted"); ax.set_ylabel("True"); ax.set_title("Confusion Matrix")
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center", fontsize=8, color="white" if cm[i,j] > cm.max()/2 else "black")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    _ensure_dir(out_png); fig.savefig(out_png, dpi=dpi, bbox_inches="tight"); plt.close(fig)
+    return out_png
+

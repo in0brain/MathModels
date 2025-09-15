@@ -1,0 +1,26 @@
+task: clu                         # 任务类型：clu=聚类
+dataset:
+  path: data/clu_demo.csv         # 数据路径
+  features: []                    # 特征列；为空=自动取数值列
+  standardize: true               # 是否标准化数值特征
+preprocess:
+  dropna: true                    # 是否丢弃含缺失值的行
+model:
+  name: KMeans                    # 算法别名（必须等于 build.py 中 ALGO）
+  params:
+    n_clusters: 3                 # 聚类数（k 值）
+    init: k-means++               # 初始化方法：k-means++ | random
+    n_init: 10                    # 不同随机初始化次数
+    max_iter: 300                 # 每次初始化的最大迭代次数
+eval:
+  metrics: [silhouette, inertia]  # 聚类评估指标：轮廓系数 & SSE
+viz:
+  enabled: true
+  dpi: 160
+  plots:
+    scatter: true                 # 特征二维散点图（仅前两列）
+    elbow: true                   # 肘部法则曲线（SSE vs k）
+outputs:
+  base_dir: outputs
+  tag: kmeans_demo
+seed: 42

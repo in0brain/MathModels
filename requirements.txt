@@ -16,3 +16,5 @@ matplotlib
 seaborn
 omegaconf
 PyYAML
+xgboost
+imageio

@@ -1,0 +1,32 @@
+task: ts                         # 作为“时间序列演化”来跑流水线
+dataset:
+  path: data/ca_init.csv         # 可留空=随机初始化；或填 data/ca_init.csv 读取初始栅格怕【分别是第一和第二种方案】
+  init_random: false             # true=随机初始化；false=从 path 读
+  grid_rows: 60                  # 网格行数（仅随机初始化时生效）
+  grid_cols: 80                  # 网格列数（仅随机初始化时生效）
+  density: 0.25                  # 初始活细胞比例(0~1)，随机初始化时生效
+preprocess:
+  binarize_threshold: 0.5        # 读入浮点初值时>阈值视为1（多数用不到）
+model:
+  name: CellularAutomaton        # 需与 build.py 的 ALGO 完全一致
+  params:
+    rule: "B3/S23"               # 规则：如Conway生命游戏；B(出生集合)/S(存活集合)
+    neighborhood: "moore"        # 邻域：moore(8邻域)|neumann(4邻域)
+    boundary: "wrap"             # 边界：wrap(环绕)|constant(常0)
+    steps: 120                   # 演化步数
+    fps: 8                       # GIF帧率
+    render_stride: 1             # 每隔多少步渲染一帧(>1可加速)
+    cmap: "gray"                 # 渲染色图（matplotlib colormap 名）
+    save_frames: false           # 是否保留中间帧PNG（会占空间）
+eval:
+  metrics: []                    # 演化一般不做传统指标，保留空数组
+viz:
+  enabled: true
+  dpi: 120
+  plots:
+    evolution_gif: true          # 合成演化GIF
+    final_snapshot: true         # 最终状态快照PNG
+outputs:
+  base_dir: outputs
+  tag: ca_life_demo              # 输出命名前缀(可改)
+seed: 42

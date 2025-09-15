@@ -1,4 +1,4 @@
-# 📘 项目操作手册（pip 版）
+# 项目操作手册（pip 版）
 
 ## 1) 项目结构与作用
 
@@ -36,29 +36,43 @@ mcm-ml/
 │  ├─ inference/                       # 再预测逻辑
 │  │   ├─ __init__.py
 │  │   └─ runner.py                    # 通用推理入口
-│  ├─ models/                          # 算法集合
+│  ├─ models/                          # 算法集合（按任务分组）
 │  │   ├─ __init__.py
-│  │   ├─ MarkovChain/
+│  │   ├─ ts/                          # 时间序列类算法
 │  │   │   ├─ __init__.py
-│  │   │   ├─ build.py                 # 训练/预测/作图/推理
-│  │   │   └─ params.yaml              # 马尔科夫链配置
-│  │   ├─ XGBoost/
+│  │   │   └─ MarkovChain/
+│  │   │       ├─ __init__.py
+│  │   │       ├─ build.py
+│  │   │       └─ params.yaml
+│  │   ├─ reg/                         # 回归类算法
 │  │   │   ├─ __init__.py
-│  │   │   ├─ build.py                 # 回归模型逻辑
-│  │   │   └─ params.yaml              # XGBoost 配置
-│  │   ├─ LightGBM/                    # （后续扩展）
-│  │   └─ KMeans/                      # （后续扩展）
+│  │   │   └─ XGBoost/
+│  │   │       ├─ __init__.py
+│  │   │       ├─ build.py
+│  │   │       └─ params.yaml
+│  │   ├─ clf/                         # 分类类算法
+│  │   │   ├─ __init__.py
+│  │   │   └─ NeuralNet/
+│  │   │       ├─ __init__.py
+│  │   │       ├─ build.py
+│  │   │       └─ params.yaml
+│  │   └─ clu/                         # 聚类类算法
+│  │       ├─ __init__.py
+│  │       └─ KMeans/                  # （后续扩展）
+│  │           ├─ __init__.py
+│  │           ├─ build.py
+│  │           └─ params.yaml
 │  └─ pipelines/                       # 训练流水线（按任务）
 │      ├─ __init__.py
-│      ├─ ts_pipeline.py               # 时间序列
-│      ├─ reg_pipeline.py              # 回归
-│      ├─ clf_pipeline.py              # 分类
-│      └─ clu_pipeline.py              # 聚类
+│      ├─ ts_pipeline.py
+│      ├─ reg_pipeline.py
+│      ├─ clf_pipeline.py
+│      └─ clu_pipeline.py
 ├─ requirements.txt                    # pip 依赖清单
 └─ README.md                           # 操作手册
 ```
 
-> 为保证 `python -m src.xxx` 可用，**src、core、models、pipelines、各算法目录都需有空的 `__init__.py`**。
+> 为保证 `python -m src.xxx` 可用，**src、core、models、pipelines、四个子目录、每个算法目录都需有空的 `__init__.py`**。
 
 ---
 
@@ -76,7 +90,7 @@ scikit-learn
 xgboost
 ```
 
-**安装命令（在项目根目录执行）：**
+**安装命令：**
 
 ```bash
 pip install -r requirements.txt
@@ -86,55 +100,55 @@ pip install -r requirements.txt
 
 ## 3) 配置文件（\*.yaml）逐行解释
 
-### 3.1 MarkovChain（`src/models/MarkovChain/params.yaml`）
+### 3.1 MarkovChain（`src/models/ts/MarkovChain/params.yaml`）
 
 ```yaml
 task: ts                        # 任务类型：ts=时间序列
 dataset:
-  path: data/markov_demo.csv    # 训练数据路径（CSV）
-  time_col: t                   # 时间/序号列名（用于绘图标注）
-  state_col: state              # 状态列名（模型使用的离散状态）
-  test_ratio: 0.2               # 测试集比例=20%（从序列尾部分割）
+  path: data/markov_demo.csv    # 训练数据路径
+  time_col: t                   # 时间/序号列名
+  state_col: state              # 状态列名
+  test_ratio: 0.2               # 测试集比例=20%
 preprocess:
-  dropna: true                  # 训练前是否丢弃缺失（针对 state_col）
+  dropna: true                  # 是否丢弃缺失
 model:
-  name: MarkovChain             # 算法别名（必须等于 build.py 中 ALGO）
+  name: MarkovChain
   params:
-    order: 1                    # 马尔可夫阶数（当前实现用于一阶）
-    smoothing: 1e-6             # 加性平滑，避免零概率
-    topk_eval: 1                # 评估时取概率最大的1类，计算acc
+    order: 1
+    smoothing: 1e-6
+    topk_eval: 1
 eval:
-  metrics: [acc]                # 评估指标：准确率
+  metrics: [acc]
 viz:
-  enabled: true                 # 是否生成图像
-  dpi: 160                      # 图片分辨率
+  enabled: true
+  dpi: 160
   plots:
-    trans_heatmap: true         # 输出转移矩阵热力图
-    seq_compare: true           # 输出真实/预测序列对比图
+    trans_heatmap: true
+    seq_compare: true
 outputs:
-  base_dir: outputs             # 所有产物的根目录
-  tag: demo_markov              # 实验标签（用于输出文件命名）
-seed: 42                        # 随机种子
+  base_dir: outputs
+  tag: demo_markov
+seed: 42
 ```
 
-### 3.2 XGBoost 回归（`src/models/XGBoost/params.yaml`）
+### 3.2 XGBoost 回归（`src/models/reg/XGBoost/params.yaml`）
 
 ```yaml
-task: reg                       # 任务类型：reg=回归
+task: reg
 dataset:
-  path: data/house.csv          # 训练数据路径（CSV）
-  target: price                 # 目标列（回归标签）
-  features: []                  # 特征列清单；为空=自动取数值列（排除 target）
-  test_size: 0.2                # 测试集比例（随机划分）
+  path: data/house.csv
+  target: price
+  features: []
+  test_size: 0.2
 preprocess:
-  dropna: false                 # 是否先丢弃含 target 缺失的行
-  impute_num: median            # 数值缺失填充策略（中位数）
-  impute_cat: most_frequent     # 类别缺失填充策略（众数）
-  scale_num: true               # 数值特征是否标准化
-  one_hot_cat: true             # 类别特征是否 OneHot 编码
+  dropna: false
+  impute_num: median
+  impute_cat: most_frequent
+  scale_num: true
+  one_hot_cat: true
 model:
-  name: XGBoost                 # 算法别名（必须等于 build.py 中 ALGO）
-  params:                       # 传入 XGBRegressor 的超参数
+  name: XGBoost
+  params:
     n_estimators: 800
     max_depth: 8
     learning_rate: 0.05
@@ -142,17 +156,17 @@ model:
     colsample_bytree: 0.9
     tree_method: hist
 eval:
-  metrics: [MAE, R2]            # 回归评估指标：MAE、R2
+  metrics: [MAE, R2]
 viz:
-  enabled: true                 # 是否生成图像
+  enabled: true
   dpi: 160
   plots:
-    feat_importance: true       # 特征重要性条形图
-    residuals: true             # 残差直方图
-    pred_scatter: true          # 真实 vs 预测 散点
+    feat_importance: true
+    residuals: true
+    pred_scatter: true
 outputs:
   base_dir: outputs
-  tag: house_xgb                # 实验标签
+  tag: house_xgb
 seed: 42
 ```
 
@@ -160,64 +174,40 @@ seed: 42
 
 ## 4) 工作流（以马尔科夫链为例）
 
-### 4.1 生成示例数据（可跳过，若你已有数据）
+### 4.1 生成示例数据
 
 ```bash
 python scripts/MarkovChain/datacreate.py
 ```
 
-* 作用：生成 `data/markov_demo.csv`，含两列：`t`（时间步）、`state`（离散状态）。
-
-### 4.2 训练与产出（必须从**项目根目录**执行）
+### 4.2 训练与产出
 
 ```bash
-python -m src.pipelines.ts_pipeline --config src/models/MarkovChain/params.yaml
+python -m src.pipelines.ts_pipeline --config src/models/ts/MarkovChain/params.yaml
 ```
 
-* **做了什么**：
-
-  1. 读取 `params.yaml`；
-  2. 加载 `data/markov_demo.csv`；
-  3. 训练 MarkovChain；
-  4. 评估 & 产出图像/表格/模型。
-* **产出文件说明**：
+* 产出示例：
 
   * `outputs/data/artifacts/MarkovChain/demo_markov_transition_matrix.csv`
-    → 训练得到的状态转移矩阵（行=当前状态，列=下一状态概率）
   * `outputs/data/predictions/MarkovChain/demo_markov_preds.csv`
-    → 测试段逐步 next-state 的真实与预测对齐表
   * `outputs/reports/demo_markov_metrics.json`
-    → 指标（如 acc）与样本数量
   * `outputs/figs/ts/demo_markov_trans_heatmap.png`
-    → 转移矩阵热力图
   * `outputs/figs/ts/demo_markov_seq_compare.png`
-    → 序列对比图（真实 vs 预测）
   * `outputs/models/demo_markov.pkl`
-    → 训练好的模型（持久化保存，便于复用）
-
-> 若**无输出**，多半是包路径问题：确保 `src` 及其子目录都有空的 `__init__.py`；并从项目根执行命令。
 
 ---
 
-## 5) 再预测（不用重新训练）
+## 5) 再预测
+
+---
 
 ### 5.1 准备新数据
 
-* 放入 `data/`，例如 `data/new_states.csv`
-* **必须包含表头**：与配置一致
+放入 `data/`，如 `data/new_states.csv`，保证表头与配置一致。
 
-  * `state_col`（默认 `state`）必需；
-  * `time_col`（默认 `t`）可选，仅用于绘图时的横轴标注；
-* 如列名不同，请修改 `src/models/MarkovChain/params.yaml` 中：
+---
 
-```yaml
-dataset:
-  path: data/new_states.csv
-  time_col: your_time_col_name
-  state_col: your_state_col_name
-```
-
-### 5.2 执行再预测命令
+### 5.2 执行命令
 
 ```bash
 python -m src.inference.runner \
@@ -225,50 +215,51 @@ python -m src.inference.runner \
   --algo MarkovChain \
   --model outputs/models/demo_markov.pkl \
   --data data/new_states.csv \
-  --config src/models/MarkovChain/params.yaml \
+  --config src/models/ts/MarkovChain/params.yaml \
   --tag new_markov
 ```
 
-* **产出**：`outputs/data/predictions/MarkovChain/new_markov_infer_preds.csv`（输入状态与预测的下一状态）
+---
 
-> 回归/分类/聚类的再预测命令同理，只需把 `--task/--algo/--model/--data/--config/--tag` 换成对应算法与数据即可。
+>【**注意：不要全部复制，斜杠和换行会被复制进去**】，
+>正确的为：`python -m src.inference.runner --task ts --algo MarkovChain --model outputs/models/demo_markov.pkl --data data/new_states.csv --config src/models/ts/MarkovChain/params.yaml --tag new_markov`
+
+
+产出：`outputs/data/predictions/MarkovChain/new_markov_infer_preds.csv`
 
 ---
 
-## 6) 重新训练：需要清理什么
+## 6) 重新训练需要清理什么
 
-若想“从零开始”重新训练，建议删除旧产物（不删也行，但易混淆）：
+删除：
 
-* **模型文件**：`outputs/models/<tag>.pkl`
-* **训练工件**：`outputs/data/artifacts/<Algo>/*`
-* **预测结果**：`outputs/data/predictions/<Algo>/*`
-* **指标报告**：`outputs/reports/<tag>_metrics.json`
-* **图表**：`outputs/figs/<task>/*`
+* `outputs/models/<tag>.pkl`
+* `outputs/data/artifacts/<Algo>/*`
+* `outputs/data/predictions/<Algo>/*`
+* `outputs/reports/<tag>_metrics.json`
+* `outputs/figs/<task>/*`
 
 然后重新执行训练命令：
 
 ```bash
-python -m src.pipelines.ts_pipeline --config src/models/MarkovChain/params.yaml
+python -m src.pipelines.ts_pipeline --config src/models/ts/MarkovChain/params.yaml
 ```
 
 ---
 
 ## 7) 常见问题（FAQ）
 
-* **Q：为什么一定要有 `__init__.py`？**
-  A：让目录被 Python 当作“包”识别，`python -m src.xxx` 和自动注册（registry）才能找到模块。
+* **Q：为什么要有 `__init__.py`？** <br>
+  A：保证 Python 能把目录识别为包，`python -m src.xxx` 和 registry 才能找到。
 
-* **Q：我只用 CSV，可以删 xlsx/parquet 支持吗？**
-  A：可以。把 `core/io.py` 中的非 CSV 分支删掉，`requirements.txt` 也无需 `openpyxl`。
-
-* **Q：XGBoost 回归如何运行？**
-  A：确保 `data/house.csv` 和 `XGBoost/params.yaml` 的列名一致，然后执行：
+* **Q：XGBoost 回归如何运行？** <br>
+  A：
 
   ```bash
-  python -m src.pipelines.reg_pipeline --config src/models/XGBoost/params.yaml
+  python -m src.pipelines.reg_pipeline --config src/models/reg/XGBoost/params.yaml
   ```
 
-  再预测（用训练好的模型）：
+  再预测：
 
   ```bash
   python -m src.inference.runner \
@@ -276,8 +267,199 @@ python -m src.pipelines.ts_pipeline --config src/models/MarkovChain/params.yaml
     --algo XGBoost \
     --model outputs/models/house_xgb.pkl \
     --data data/house_new.csv \
-    --config src/models/XGBoost/params.yaml \
+    --config src/models/reg/XGBoost/params.yaml \
     --tag house_xgb_new
   ```
 
----
+## 8） 快速上手命令（总结）
+
+以下命令需在 **项目根目录** 执行。【~~在控制台输入pwd看看~~】
+
+### 1) 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2) 可选：生成示例数据
+
+（不同算法的脚本放在 `scripts/` 下）
+
+```bash
+# 分类 - 神经网络
+python scripts/NeuralNet/datacreate.py
+
+# 时间序列 - 马尔科夫链
+python scripts/MarkovChain/datacreate.py
+```
+
+### 3) 训练模型
+
+```bash
+# 时间序列 - 马尔科夫链
+python -m src.pipelines.ts_pipeline  --config src/models/ts/MarkovChain/params.yaml
+
+# 回归 - XGBoost
+python -m src.pipelines.reg_pipeline --config src/models/reg/XGBoost/params.yaml
+
+# 分类 - 神经网络
+python -m src.pipelines.clf_pipeline --config src/models/clf/NeuralNet/params.yaml
+
+# 聚类 - KMeans
+python -m src.pipelines.clu_pipeline --config src/models/clu/KMeans/params.yaml
+```
+
+### 4) 再预测（使用训练好的模型）
+
+```bash
+python -m src.inference.runner \
+  --task <任务类型: ts|reg|clf|clu> \
+  --algo <算法名: MarkovChain|XGBoost|NeuralNet|KMeans> \
+  --model outputs/models/<tag>.pkl \
+  --data data/<new_data>.csv \
+  --config src/models/<子目录>/<算法名>/params.yaml \
+  --tag <新实验标签>
+```
+
+**示例（神经网络分类）：**
+
+```bash
+python -m src.inference.runner \
+  --task clf \
+  --algo NeuralNet \
+  --model outputs/models/nn_clf_demo.pkl \
+  --data data/clf_new.csv \
+  --config src/models/clf/NeuralNet/params.yaml \
+  --tag nn_clf_new
+```
+
+------
+
+快速定位 **安装 → 造数 → 训练 → 再预测**四步操作。
+
+
+
+## 9）任务–算法–命令对照表
+
+| 任务类型      | 算法名称        | 训练命令                                                     | 再预测命令示例                                               |
+| ------------- | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 时间序列 (ts) | MarkovChain     | `bash<br>python -m src.pipelines.ts_pipeline --config src/models/ts/MarkovChain/params.yaml<br>` | `bash<br>python -m src.inference.runner \ <br> --task ts \ <br> --algo MarkovChain \ <br> --model outputs/models/demo_markov.pkl \ <br> --data data/new_states.csv \ <br> --config src/models/ts/MarkovChain/params.yaml \ <br> --tag new_markov<br>` |
+| 回归 (reg)    | XGBoost         | `bash<br>python -m src.pipelines.reg_pipeline --config src/models/reg/XGBoost/params.yaml<br>` | `bash<br>python -m src.inference.runner \ <br> --task reg \ <br> --algo XGBoost \ <br> --model outputs/models/house_xgb.pkl \ <br> --data data/house_new.csv \ <br> --config src/models/reg/XGBoost/params.yaml \ <br> --tag house_xgb_new<br>` |
+| 分类 (clf)    | NeuralNet (MLP) | `bash<br>python -m src.pipelines.clf_pipeline --config src/models/clf/NeuralNet/params.yaml<br>` | `bash<br>python -m src.inference.runner \ <br> --task clf \ <br> --algo NeuralNet \ <br> --model outputs/models/nn_clf_demo.pkl \ <br> --data data/clf_new.csv \ <br> --config src/models/clf/NeuralNet/params.yaml \ <br> --tag nn_clf_new<br>` |
+| 聚类 (clu)    | KMeans          | `bash<br>python -m src.pipelines.clu_pipeline --config src/models/clu/KMeans/params.yaml<br>` | `bash<br>python -m src.inference.runner \ <br> --task clu \ <br> --algo KMeans \ <br> --model outputs/models/kmeans_demo.pkl \ <br> --data data/clu_new.csv \ <br> --config src/models/clu/KMeans/params.yaml \ <br> --tag kmeans_new<br>` |
+
+好的 ✅ 我来帮你在 README 里新增一节 **「🌱 扩展新算法步骤」**，作为开发者指南，告诉他们如何往 `models/ts|reg|clf|clu/` 下添加新算法。
+
+------
+
+## 10）扩展新算法步骤
+
+为了保证新算法能够无缝接入 **pipeline / inference / registry**，需要按以下规范添加。假设我们要扩展一个新算法 `MyAlgo` 到 **分类任务 (clf)**：
+
+### 1) 新建目录
+
+在对应任务子目录下新建文件夹：
+
+```
+src/models/clf/MyAlgo/
+├─ __init__.py        # 空文件，保证 Python 包识别
+├─ build.py           # 算法核心逻辑（训练/评估/推理）
+└─ params.yaml        # 配置文件（超参数、数据字段等）
+```
+
+### 2) 编写配置文件（params.yaml）
+
+最小模板：
+
+```yaml
+task: clf                  # 任务类型：ts | reg | clf | clu
+dataset:
+  path: data/myalgo.csv    # 输入数据
+  target: label            # 标签列名（分类/回归时）
+  features: []             # 特征列，空=自动选择
+model:
+  name: MyAlgo             # 算法别名（必须与 build.py 中 ALGO 一致）
+  params:
+    param1: value1         # 算法超参数
+    param2: value2
+eval:
+  metrics: [ACC, F1]       # 指标选择，具体由 metrics.py 实现
+viz:
+  enabled: true
+outputs:
+  base_dir: outputs
+  tag: myalgo_demo
+seed: 42
+```
+
+### 3) 编写 build.py
+
+最小接口规范：
+
+```python
+# -*- coding: utf-8 -*-
+from typing import Dict, Any
+import pandas as pd
+
+TASK = "clf"       # 与 params.yaml 中 task 一致
+ALGO = "MyAlgo"    # 与 params.yaml 中 model.name 一致
+
+def build(cfg: Dict[str, Any]):
+    """构建模型对象（可返回 sklearn/自定义对象）"""
+    ...
+
+def fit(model, df: pd.DataFrame, cfg: Dict[str, Any]):
+    """
+    训练 + 评估 + 保存结果
+    返回字典：{"metrics": {...}, "artifacts": {...}}
+    """
+    ...
+
+def inference(model, df: pd.DataFrame, cfg: Dict[str, Any]):
+    """
+    加载已训练模型，对新数据进行预测
+    返回字典：{"predictions_csv": 路径}
+    """
+    ...
+```
+
+### 4) 自动注册
+
+无需手动修改 `registry.py`。
+ 因为 `registry` 会递归扫描 `src/models/` 下的 `build.py`，并自动注册键：
+
+```
+"{task}:{algo}".lower()
+```
+
+例如：
+
+```
+"clf:myalgo"
+```
+
+### 5) 运行方式
+
+- 训练：
+
+  ```bash
+  python -m src.pipelines.clf_pipeline --config src/models/clf/MyAlgo/params.yaml
+  ```
+
+- 再预测：
+
+  ```bash
+  python -m src.inference.runner \
+    --task clf \
+    --algo MyAlgo \
+    --model outputs/models/myalgo_demo.pkl \
+    --data data/myalgo_new.csv \
+    --config src/models/clf/MyAlgo/params.yaml \
+    --tag myalgo_new
+  ```
+
+### 6) 建议
+
+- 若算法需要特定评估指标或可视化方法，请在 `src/core/metrics.py` / `src/core/viz.py` 中 **追加函数**，不要覆盖已有。
+- 输出路径统一通过 `io.out_path_predictions` / `io.save_model` 等接口，保持与现有算法一致。
+- 若算法依赖额外库，请在 `requirements.txt` 中补充。

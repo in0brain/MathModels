@@ -1,0 +1,45 @@
+task: reg                         # 任务类型：回归
+dataset:
+  path: data/house.csv            # 【按需修改】训练数据路径（CSV）
+  target: price                   # 【按需修改】目标列名
+  features: []                    # 留空=自动取数值列（排除 target），类别列会自动 OneHot
+  test_size: 0.2                  # 测试集比例（随机划分）
+preprocess:
+  dropna: false                   # 是否先丢弃含 target 缺失的行
+  impute_num: median              # 数值缺失填充
+  impute_cat: most_frequent       # 类别缺失填充
+  scale_num: true                 # 数值列标准化
+  one_hot_cat: true               # 类别列 OneHot
+model:
+  name: XGBoost                   # 必须与 build.py 里的 ALGO 一致
+  params:                         # 传入 XGBRegressor 的超参数
+    n_estimators: 800
+    learning_rate: 0.05
+    max_depth: 6            # ↓
+    min_child_weight: 3     # ↑
+    gamma: 0.5              # ↑（需要更强证据才分裂）
+    subsample: 0.8          # ↓
+    colsample_bytree: 0.8   # ↓
+    reg_alpha: 0.1          # ↑
+    reg_lambda: 1.0         # ↑
+
+#    n_estimators: 800
+#    max_depth: 8                  # max_depth ↓ / max_leaves ↓（简化模型）
+#    learning_rate: 0.05           # min_child_weight ↑、gamma ↑（分裂更保守）
+#    subsample: 0.9
+#    colsample_bytree: 0.9
+#    tree_method: hist
+
+eval:
+  metrics: [MAE, R2]              # 评估指标：绝对误差、R2
+viz:
+  enabled: true
+  dpi: 160
+  plots:
+    feat_importance: true         # 特征重要性图
+    residuals: true               # 残差直方图
+    pred_scatter: true            # 真实 vs 预测 散点图
+outputs:
+  base_dir: outputs               # 产出根目录
+  tag: house_xgb                  # 【可选】实验标签（用于文件命名）
+seed: 42

@@ -38,3 +38,22 @@ def evaluate_regression(y_true, y_pred, metrics=("MAE","R2")):
     if "R2" in metrics:
         out["R2"]  = float(r2_score(yt, yp))
     return out
+
+
+# ====此处是神经网络====
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+def evaluate_classification(y_true, y_pred, proba=None, classes=None, metrics=("ACC","F1","ROC_AUC")):
+    out = {}
+    if "ACC" in metrics:
+        out["ACC"] = float(accuracy_score(y_true, y_pred))
+    if "F1" in metrics:
+        # 二分类/多分类统一用宏平均（也可改 'weighted'）
+        out["F1"] = float(f1_score(y_true, y_pred, average="macro"))
+    if "ROC_AUC" in metrics and proba is not None:
+        # 二分类：取正类概率；多类：一对多宏平均
+        if proba.ndim == 1 or proba.shape[1] == 1:
+            out["ROC_AUC"] = float(roc_auc_score(y_true, proba))
+        else:
+            out["ROC_AUC"] = float(roc_auc_score(y_true, proba, multi_class="ovr", average="macro"))
+    return out

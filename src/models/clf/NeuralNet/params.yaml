@@ -1,0 +1,37 @@
+task: clf                         # 任务类型：分类
+dataset:
+  path: data/clf_demo.csv         # 【按需修改】CSV 数据路径
+  target: label                   # 【按需修改】标签列（0/1 或多类）
+  features: []                    # 留空=自动取数值列（类别列会 OHE）
+  test_size: 0.2                  # 测试集比例
+preprocess:
+  dropna: false                   # 若目标列缺失是否丢行
+  impute_num: median              # 数值缺失填充
+  impute_cat: most_frequent       # 类别缺失填充
+  scale_num: true                 # 建议对 MLP 标准化
+  one_hot_cat: true               # 类别列 OneHot
+model:
+  name: NeuralNet                 # 必须与 build.py 的 ALGO 一致
+  params:
+    hidden_layer_sizes: [128, 64] # 隐藏层结构（可调参）
+    activation: relu              # 激活：identity|logistic|tanh|relu
+    solver: adam                  # 求解器：adam|lbfgs|sgd
+    alpha: 0.0001                 # L2 正则
+    learning_rate_init: 0.001     # 初始学习率
+    max_iter: 200                 # 训练轮数
+    early_stopping: true          # 早停（内置验证集）
+    n_iter_no_change: 20          # 早停耐心
+    validation_fraction: 0.1      # 早停验证集占比
+eval:
+  metrics: [ACC, F1, ROC_AUC]     # 评估指标（多类时为宏/加权见实现）
+viz:
+  enabled: true
+  dpi: 160
+  plots:
+    roc: true                     # ROC 曲线（多类用一对多）
+    pr: true                      # PR 曲线
+    cm: true                      # 混淆矩阵
+outputs:
+  base_dir: outputs
+  tag: nn_clf_demo                # 【可改】实验标签
+seed: 42

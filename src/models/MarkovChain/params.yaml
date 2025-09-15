@@ -1,0 +1,29 @@
+  # 不同类型需修改
+task: ts
+dataset:
+  # 【需要修改】如果数据文件名不同，请改 path
+  path: data/markov_demo.csv
+  time_col: t
+  state_col: state
+  test_ratio: 0.2
+preprocess:
+  dropna: true
+model:
+  name: MarkovChain
+  params:
+    order: 1
+    smoothing: 1e-6
+    topk_eval: 1
+eval:
+  metrics: [acc]
+viz:
+  enabled: true
+  dpi: 160
+  plots:
+    trans_heatmap: true
+    seq_compare: true
+outputs:
+  base_dir: outputs
+  # tag【可选修改】用于命名区分实验
+  tag: demo_markov
+seed: 42

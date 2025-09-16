@@ -18,3 +18,7 @@ omegaconf
 PyYAML
 xgboost
 imageio
+ultralytics
+opencv-python
+pyarrow
+tqdm

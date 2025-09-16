@@ -1,0 +1,44 @@
+videos:
+  manifest: data/videos/manifest.csv    # CSV清单：一行一个视频（path,site,...）
+  chunk_sec: 300                        # 切片长度=300s
+  transcode:                            # 统一转码配置
+    enable: true                        # 是否启用统一转码
+    scale_h: 720                        # 高度固定为720，宽度按比例为偶数
+    fps: 15                             # 统一帧率 15fps
+    gop: 30                             # 关键帧间隔（方便无损切片）
+  out_tmp: outputs/data/artifacts/vision/chunks  # 切片输出根目录
+
+yolo:
+  model: yolov8n.pt                     # YOLO 模型权重
+  conf: 0.4                             # 置信度阈值
+  iou: 0.5                              # NMS IOU 阈值
+  classes: [2,3,5,7]                    # 过滤的类别id（车类），不填则全类
+
+infer:
+  device: "0"                           # GPU编号；CPU填 "cpu"
+  batch: 16                             # 批大小（Ultralytics会自动处理）
+  half: true                            # 是否使用半精度（FP16）
+  frame_stride: 2                       # 抽帧间隔=2（降计算量）
+
+tracking:
+  max_age: 30                           # 轨迹最大“未匹配帧数”
+  match_thresh: 80.0                    # 质心匹配的最大距离（像素）
+
+roi:
+  use_polygon: false                    # 是否使用多边形ROI（此实现未用）
+  poly: []                              # 多边形点（留空表示全画面）
+  count_line: [0.1,0.8, 0.9,0.8]        # 归一化计数线 (x1,y1,x2,y2)
+
+calib:
+  pixels_per_meter: 8.0                 # 像素/米 的估计值（无标定时的近似）
+  meters_per_lane: 3.75                 # 单车道宽度（备用；本实现未直接用）
+  roi_length_m: 80.0                    # ROI物理长度估计（用于密度近似）
+
+aggregate:
+  win_sec: 10                           # 聚合窗口（秒），此简化实现按秒聚合
+  out_dir: outputs/data/artifacts/vision # 聚合输出目录（tracks/agg/traffic_*.csv）
+  tag: vision_v1                        # 输出文件标签
+
+logging:
+  save_debug_frames: false              # 是否保存叠加框调试帧（此实现未用）
+  report_dir: outputs/reports/vision   # 运行报告目录（此实现未用）

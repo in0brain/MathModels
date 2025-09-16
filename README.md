@@ -140,7 +140,7 @@ python -m src.inference.runner --task reg --algo XGBoost --model outputs/models/
 
 ```
 src/models/clf/MyAlgo/
-├─ __init__.py
+├─ __init__.py(为空就行，将目录标记为Python包。通过在目录中包含这个文件，Python解释器会将该目录及其包含的文件视为一个包)
 ├─ build.py
 └─ params.yaml
 ```

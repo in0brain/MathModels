@@ -1,0 +1,29 @@
+# Python 常见忽略项
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.ipynb_checkpoints/
+.venv/
+.env
+
+# VSCode / PyCharm
+.vscode/
+.idea/
+
+# pytest / mypy / coverage
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 数据文件（不提交）
+data/**
+!data/.gitkeep
+!data/.gitignore
+
+# 输出结果（不提交）
+outputs/**
+!outputs/.gitkeep
+!outputs/.gitignore

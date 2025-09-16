@@ -348,11 +348,51 @@ python -m src.inference.runner \
 | 分类 (clf)    | NeuralNet (MLP) | `bash<br>python -m src.pipelines.clf_pipeline --config src/models/clf/NeuralNet/params.yaml<br>` | `bash<br>python -m src.inference.runner \ <br> --task clf \ <br> --algo NeuralNet \ <br> --model outputs/models/nn_clf_demo.pkl \ <br> --data data/clf_new.csv \ <br> --config src/models/clf/NeuralNet/params.yaml \ <br> --tag nn_clf_new<br>` |
 | 聚类 (clu)    | KMeans          | `bash<br>python -m src.pipelines.clu_pipeline --config src/models/clu/KMeans/params.yaml<br>` | `bash<br>python -m src.inference.runner \ <br> --task clu \ <br> --algo KMeans \ <br> --model outputs/models/kmeans_demo.pkl \ <br> --data data/clu_new.csv \ <br> --config src/models/clu/KMeans/params.yaml \ <br> --tag kmeans_new<br>` |
 
-好的 ✅ 我来帮你在 README 里新增一节 **「🌱 扩展新算法步骤」**，作为开发者指南，告诉他们如何往 `models/ts|reg|clf|clu/` 下添加新算法。
-
-------
 
 ## 10）扩展新算法步骤
+
+----
+### 0)
+为了主分支不被影响，可以在git中创建新的版本分支`dev`
+1. 在本地创建分支
+```bash
+# 确认在项目目录下
+git checkout main   # 切到主分支（或 master）
+git pull origin main   # 确保代码是最新的
+git checkout -b dev # 创建并切换到新分支
+
+```
+2. 将分支推送到 GitHub**
+
+```bash
+git push origin dev
+
+```
+
+3. 其他人想在这个分支上开发，可以这样：
+
+git fetch origin
+git checkout dev
+
+4. 提交代码
+
+在分支里正常提交即可：
+```bash
+git add .
+git commit -m "xx算法"
+git push origin dev
+```
+
+
+5. 合并到主分支（推荐用 Pull Request）
+
+在 GitHub 网页上，进入仓库后点 Pull requests → New pull request。
+
+选择目标分支（通常是 main），源分支（如 dev）。
+
+提交 PR，让其他人 review 后再合并。
+---
+
 
 为了保证新算法能够无缝接入 **pipeline / inference / registry**，需要按以下规范添加。假设我们要扩展一个新算法 `MyAlgo` 到 **分类任务 (clf)**：
 

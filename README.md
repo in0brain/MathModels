@@ -4,45 +4,68 @@
 
 ```
 mcm-ml/
-├─ data/                               # 数据目录
-│   ├─ markov_demo.csv                 # 示例：马尔科夫链训练数据
-│   ├─ house.csv                       # 示例：XGBoost 回归数据
-│   └─ ...                             # 新数据统一放这里
-├─ outputs/                            # 自动生成的结果，不用手动修改
-│  ├─ data/
-│  │  ├─ artifacts/                    # 工件（转移矩阵/特征重要性等）
-│  │  └─ predictions/                  # 预测结果（按算法分类）
-│  ├─ figs/                            # 图表输出（按任务类型分类）
-│  ├─ models/                          # 训练好的模型（.pkl）
-│  └─ reports/                         # JSON 报告（指标等）
-├─ scripts/                            # 辅助脚本（造数/批处理）
-│  ├─ MarkovChain/datacreate.py
-│  └─ NeuralNet/datacreate.py
-├─ src/
-│  ├─ core/                            # 公共工具
-│  │   ├─ io.py        # IO 工具：读写 CSV/Parquet、保存模型
-│  │   ├─ metrics.py   # 指标函数：ACC/F1/MAE/R2...
-│  │   ├─ registry.py  # 自动注册算法 (task:algo -> build.py)
-│  │   └─ viz.py       # 可视化工具：特征重要性、残差图等
-│  ├─ inference/                       # 再预测逻辑
-│  │   └─ runner.py    # 通用推理入口
-│  ├─ models/                          # 算法集合（按任务分组）
-│  │   ├─ ts/          # 时间序列
-│  │   ├─ reg/         # 回归
-│  │   ├─ clf/         # 分类
-│  │   └─ clu/         # 聚类
-│  │       └─ 每个算法子目录：__init__.py, build.py, params.yaml
-│  ├─ pipelines/                       # 训练流水线
-│  │   ├─ ts_pipeline.py   # 时间序列任务
-│  │   ├─ reg_pipeline.py  # 回归任务
-│  │   ├─ clf_pipeline.py  # 分类任务
-│  │   └─ clu_pipeline.py  # 聚类任务
-│  └─ preprocessing/                   # 预处理（视频/表格等）
-│      ├─ base.py        # 通用任务基类
-│      ├─ vision/        # 视频数据处理（YOLO+跟踪+聚合）
-│      └─ tabular/       # 表格清洗与时间对齐
-├─ requirements.txt                    # pip 依赖清单
-└─ README.md                           # 使用文档
+├── data/                               # 存放原始数据
+│   ├── house.csv
+│   └── ...
+├── outputs/                            # 所有自动生成的产出 (被 .gitignore 忽略)
+│   ├── data/
+│   │   ├── artifacts/                  # 预处理/训练的中间产物
+│   │   └── predictions/                # 模型的预测结果
+│   ├── models/                         # 训练好的模型 (.pkl)
+│   ├── plots/                          # 生成的图表
+│   └── reports/                        # 评估指标报告 (.json, .csv)
+├── runs/                               # (新增) 可复用的实验配置文件集合
+│   ├── house_lgbm.yaml
+│   ├── house_rf.yaml
+│   ├── house_xgb.yaml
+│   └── to_compare.yaml
+├── scripts/                            # 数据生成等辅助脚本
+│   ├── KMeans/datacreate.py
+│   └── XGBoost/datacreate.py
+├── src/
+│   ├── core/                           # 核心公共工具
+│   │   ├── io.py                       # IO 工具：读写 CSV/Parquet、保存模型
+│   │   ├── metrics.py                  # 指标函数：ACC/F1/MAE/R2...
+│   │   ├── registry.py                 # 自动注册算法 (task:algo -> build.py)
+│   │   └── viz.py                      # 可视化工具：特征重要性、残差图等
+│   ├── inference/                      # 使用已训练模型进行再预测
+│   │   └── runner.py                   # 通用推理入口
+│   ├── models/                         # 各类算法模块 (核心)
+│   │   ├── clf/                        # 分类模型
+│   │   ├── clu/                        # 聚类模型
+│   │   ├── reg/                        # --- 回归模型 ---
+│   │   │   ├── LightGBM/
+│   │   │   │   ├── build.py
+│   │   │   │   └── params.yaml
+│   │   │   ├── RandomForest/
+│   │   │   │   ├── build.py
+│   │   │   │   └── params.yaml
+│   │   │   └── XGBoost/
+│   │   │       ├── build.py
+│   │   │       └── params.yaml
+│   │   └── ts/                         # 时间序列模型
+│   ├── pipelines/                      # (新增与优化) 核心工作流
+│   │   ├── compare_pipeline.py         # (新增) 多模型对比流水线
+│   │   ├── eda_pipeline.py             # (新增) 探索性数据分析流水线
+│   │   ├── hyperopt_pipeline.py        # (新增) Optuna超参数优化流水线
+│   │   ├── preprocess_pipeline.py      # (优化) 模块化预处理流水线
+│   │   ├─ ts_pipeline.py   # 时间序列任务
+│   │   ├─ reg_pipeline.py  # 回归任务
+│   │   ├─ clf_pipeline.py  # 分类任务
+│   │   └─ clu_pipeline.py  # 聚类任务
+│   └─ preprocessing/                  # (已重构) 数据预处理模块
+│       ├── base.py
+│       ├── tabular/                    # 表格数据处理任务
+│       │   ├── balance.py
+│       │   ├── dimreduce.py
+│       │   ├── encode.py
+│       │   ├── feature_engineering.py
+│       │   ├── impute.py
+│       │   ├── normalize.py
+│       │   └── steps_house.yaml
+│       └── vision/                     # 视觉数据处理任务
+├── requirements.txt                    # Python 依赖清单
+└── README.md                           # 本文档
 ```
 
 **核心关系**：
@@ -132,7 +155,153 @@ python -m src.inference.runner --task reg --algo XGBoost --model outputs/models/
 
 ---
 
-## 三、如何扩展新算法模块
+## 三、对比XGBoost, RandomForest, LightGBM模型
+
+### Quick Start（最小数据集生成）
+
+本项目已在 `.gitignore` 中忽略了 `data/` 文件夹，开发者本地需要先生成一份最小可运行的数据集。
+
+执行以下命令：
+
+```bash
+python scripts/make_toy_data.py
+```
+
+该脚本会在 `data/house.csv` 生成一份 300×8 的示例数据，包含数值特征、类别特征与目标价格列：
+
+- 数值特征：`feat1, feat2, feat3, feat4, feat5`
+- 类别特征：`city, type`
+- 目标列：`price`
+
+随后可运行预处理流水线：
+
+```bash
+python -m src.pipelines.preprocess_pipeline --config src/preprocessing/tabular/steps_house.yaml
+```
+
+产物会保存在：
+
+```
+outputs/data/artifacts/tabular/house_enc.csv
+```
+
+------
+
+### 多模型对比教程
+
+本项目支持对 **XGBoost / RandomForest / LightGBM** 等模型进行横向对比，流程完全由 YAML 配置驱动。
+
+#### 1. 配置文件说明
+
+- `runs/house_xgb.yaml`：XGBoost 模型配置
+- `runs/house_rf.yaml`：RandomForest 模型配置
+- `runs/house_lgbm.yaml`：LightGBM 模型配置
+- `runs/to_compare.yaml`：对比清单（列出要比较的配置）
+
+配置文件基本结构：
+
+```yaml
+task: reg
+
+dataset:
+  path: outputs/data/artifacts/tabular/house_enc.csv
+  target: price
+
+split:
+  test_size: 0.2
+  random_state: 42
+  shuffle: true
+
+preprocess:
+  impute_num: median
+  scale_num: true
+  one_hot_cat: true
+  impute_cat: most_frequent
+
+model:
+  name: XGBoost          # 或 RandomForest / LightGBM
+  params:
+    n_estimators: 400
+    max_depth: 6
+    learning_rate: 0.05
+
+outputs:
+  base_dir: outputs
+  tag: xgb_baseline
+
+eval:
+  metrics: ["MAE","RMSE","R2"]
+
+viz:
+  enabled: true
+  dpi: 160
+```
+
+对比清单 `runs/to_compare.yaml`：
+
+```yaml
+configs:
+  - runs/house_xgb.yaml
+  - runs/house_rf.yaml
+  - runs/house_lgbm.yaml
+```
+
+------
+
+#### 2. 运行命令
+
+**单模型训练**
+
+```bash
+# XGBoost
+python -m src.pipelines.reg_pipeline --config runs/house_xgb.yaml
+
+# RandomForest
+python -m src.pipelines.reg_pipeline --config runs/house_rf.yaml
+
+# LightGBM（需先安装）
+pip install lightgbm
+python -m src.pipelines.reg_pipeline --config runs/house_lgbm.yaml
+```
+
+**一键对比**
+
+```bash
+# 汇总已有结果
+python -m src.pipelines.compare_pipeline --list runs/to_compare.yaml --out outputs/reports/comparison_house.csv
+
+# 重训并汇总（推荐）
+python -m src.pipelines.compare_pipeline --list runs/to_compare.yaml --out outputs/reports/comparison_house.csv --rerun
+```
+
+产物：
+
+- **CSV**：`outputs/reports/comparison_house.csv`（横向指标表）
+- **图表**：`outputs/plots/compare/compare_MAE.png`, `compare_RMSE.png`, `compare_R2.png`
+
+------
+
+#### 3. 常见坑与解决方案
+
+- `KeyError: 'outputs'` → YAML 缺少 `outputs:`，需补齐。
+- `got multiple values for keyword argument 'random_state'` → 代码已改为 `params.setdefault()`，避免冲突。
+- `RandomForestRegressor(max_features='auto')` 报错 → 改成 `null` 或 `"sqrt"`。
+- 类别列做均值时报错 → 已区分数值列与类别列，类别列用众数填补 + OneHot。
+- LightGBM 未安装 → `pip install lightgbm`。
+
+------
+
+```bash
+git clone <repo-url>
+cd MathModels
+pip install -r requirements.txt
+python scripts/make_toy_data.py
+python -m src.pipelines.preprocess_pipeline --config src/preprocessing/tabular/steps_house.yaml
+python -m src.pipelines.compare_pipeline --list runs/to_compare.yaml --out outputs/reports/comparison_house.csv --rerun
+```
+
+
+## 四、如何扩展新算法模块
 
 ### 1. 创建目录
 
@@ -245,7 +414,6 @@ src/
 pipelines/
 └─ vision_pipeline.py         # 调度：切片→检测→聚合
 ```
-
 #### 7.1 参数文件规范（以 `src/preprocessing/vision/params.yaml` 为例）
 
 ```yaml

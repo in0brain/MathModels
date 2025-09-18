@@ -1,0 +1,25 @@
+# src/preprocessing/tabular/steps_house.yaml
+steps:
+  # 1) 简单填充（不写 cols，自动对所有列做合理填充）
+  - name: impute_simple
+    params:
+      path: data/house.csv
+      out: outputs/data/artifacts/tabular/house_imputed.csv
+      strategy: median   # mean|median|mode
+
+  # 2) 数值列最值归一化（只处理数值列：area, bedrooms, bathrooms, year_built）
+  - name: minmax_scale
+    params:
+      path: outputs/data/artifacts/tabular/house_imputed.csv
+      out: outputs/data/artifacts/tabular/house_minmax.csv
+      cols: ["area","bedrooms","bathrooms","year_built"]
+      feature_range: [0, 1]
+
+  # 3) 类别列独热编码（只处理 location）
+  - name: one_hot_encode
+    params:
+      path: outputs/data/artifacts/tabular/house_minmax.csv
+      out: outputs/data/artifacts/tabular/house_enc.csv
+      cols: ["location"]
+      drop_first: true
+      artifacts_out: outputs/data/artifacts/tabular/enc_map.json

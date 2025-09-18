@@ -3,6 +3,8 @@ import math, json
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 import pandas as pd
+
+from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
 def _num_cols(df: pd.DataFrame, cols: Optional[List[str]]):
@@ -21,6 +23,7 @@ class MinMaxScaleTask(PreprocessTask):
             if vmax > vmin:
                 df[c] = (df[c] - vmin) / (vmax - vmin)
                 df[c] = df[c] * (b - a) + a
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "cols": cols, "range": (a, b)}
 register_task("minmax_scale", MinMaxScaleTask)
@@ -37,6 +40,7 @@ class ZScoreScaleTask(PreprocessTask):
             mu, sigma = df[c].mean(), df[c].std(ddof=ddof)
             if sigma > 0:
                 df[c] = (df[c] - mu) / sigma
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "cols": cols, "ddof": ddof}
 register_task("zscore_scale", ZScoreScaleTask)
@@ -53,6 +57,7 @@ class RobustScaleTask(PreprocessTask):
             iqr = q3 - q1
             if iqr > 0:
                 df[c] = (df[c] - med) / iqr
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "cols": cols}
 register_task("robust_scale", RobustScaleTask)
@@ -68,6 +73,7 @@ class MaxAbsScaleTask(PreprocessTask):
             m = np.abs(df[c]).max()
             if m > 0:
                 df[c] = df[c] / m
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "cols": cols}
 register_task("maxabs_scale", MaxAbsScaleTask)
@@ -88,6 +94,7 @@ class LogTransformTask(PreprocessTask):
             if sh:
                 s = s + sh
             df[c] = np.log1p(s)
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "cols": cols, "shift": shift}
 register_task("log_transform", LogTransformTask)
@@ -114,6 +121,8 @@ class BoxCoxTransformTask(PreprocessTask):
                 y = boxcox(s.values, lmbda=lam)
             df[c] = y
             lambdas[c] = lam
+
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         if artifacts_out:
             with open(artifacts_out, "w", encoding="utf-8") as f:
@@ -135,6 +144,7 @@ class QuantileTransformTask(PreprocessTask):
         qt = QuantileTransformer(n_quantiles=n_quantiles, output_distribution=output_distribution,
                                  random_state=random_state, subsample=int(1e9))
         df[cols] = qt.fit_transform(df[cols])
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "cols": cols, "n_quantiles": n_quantiles, "output_distribution": output_distribution}
 register_task("quantile_transform", QuantileTransformTask)

@@ -1,0 +1,11 @@
+dataset:
+  path: outputs/data/artifacts/tabular/house_enc.csv
+  target: price
+
+cv:
+  n_splits: 5
+
+trials: 30
+
+report:
+  out_dir: outputs/reports/hyperopt_house

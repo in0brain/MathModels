@@ -1,0 +1,4 @@
+configs:
+  - runs/house_xgb.yaml
+  - runs/house_lgbm.yaml
+  - runs/house_rf.yaml

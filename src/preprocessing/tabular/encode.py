@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional, List
 import json
 import numpy as np
 import pandas as pd
+from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
 class OneHotEncodeTask(PreprocessTask):
@@ -16,6 +17,7 @@ class OneHotEncodeTask(PreprocessTask):
         if cols is None:
             cols = [c for c in df.columns if not pd.api.types.is_numeric_dtype(df[c])]
         res = pd.get_dummies(df, columns=cols, drop_first=drop_first, dtype=dtype)
+        io.ensure_dir(out)
         res.to_csv(out, index=False)
         mapping = {}
         if artifacts_out:

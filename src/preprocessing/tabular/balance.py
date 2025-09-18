@@ -1,6 +1,8 @@
 # src/preprocessing/tabular/balance.py
 from typing import Dict, Any, List, Optional
 import pandas as pd
+
+from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
 def _check_y(df: pd.DataFrame, y_col: str):
@@ -25,6 +27,7 @@ class UndersampleRandomTask(PreprocessTask):
             target = int(target)
             frames.append(sub.sample(n=target, random_state=rs) if n > target else sub)
         out_df = pd.concat(frames, axis=0).sample(frac=1.0, random_state=rs).reset_index(drop=True)
+        io.ensure_dir(out)
         out_df.to_csv(out, index=False)
         return {"out": out, "y_col": y_col,
                 "counts_before": vc.to_dict(),
@@ -50,6 +53,7 @@ class OversampleRandomTask(PreprocessTask):
                 sub = pd.concat([sub, extras], axis=0)
             frames.append(sub)
         out_df = pd.concat(frames, axis=0).sample(frac=1.0, random_state=rs).reset_index(drop=True)
+        io.ensure_dir(out)
         out_df.to_csv(out, index=False)
         return {"out": out, "y_col": y_col,
                 "counts_before": vc.to_dict(),
@@ -73,6 +77,7 @@ class SmoteSampleTask(PreprocessTask):
         sm = SMOTE(k_neighbors=k, random_state=rs)
         X_res, y_res = sm.fit_resample(X, y)
         out_df = pd.concat([pd.DataFrame(X_res, columns=X.columns), pd.Series(y_res, name=y_col)], axis=1)
+        io.ensure_dir(out)
         out_df.to_csv(out, index=False)
         return {"out": out, "y_col": y_col}
 register_task("smote_sample", SmoteSampleTask)

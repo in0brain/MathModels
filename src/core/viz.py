@@ -12,7 +12,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
+sns.set_theme(style="whitegrid")  # 新增：全局统一主题
 # 工具函数：确保目录存在
 def _ensure_dir(path: str):
     # 取输出路径的父目录，如果不存在则创建
@@ -187,3 +189,41 @@ def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160):
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_png
+from sklearn.metrics import roc_curve, auc
+
+def plot_multi_roc_compare(results: dict, out_png: str, dpi=160):
+    """
+    多模型 ROC 对比
+    results: {"ModelA": (y_true, proba_2col or proba_1col), "ModelB": ...}
+    """
+    fig, ax = plt.subplots(figsize=(8, 6))
+    for name, (y_true, proba) in results.items():
+        proba = np.asarray(proba)
+        if proba.ndim == 1:  # 一列：正类概率
+            fpr, tpr, _ = roc_curve(y_true, proba)
+        else:                # 二列：取第二列为正类概率
+            fpr, tpr, _ = roc_curve(y_true, proba[:, 1])
+        ax.plot(fpr, tpr, label=f"{name} (AUC={auc(fpr, tpr):.3f})")
+    ax.plot([0,1],[0,1],"--", linewidth=1)
+    ax.set_xlabel("FPR"); ax.set_ylabel("TPR"); ax.set_title("ROC Curve Comparison")
+    ax.legend()
+    _ensure_dir(out_png)
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    return out_png
+
+def plot_reg_compare(rows, metric: str, out_png: str, dpi=160):
+    # rows: [{'model': 'xgb_baseline', 'MAE':..., 'RMSE':..., 'R2':...}, ...]
+    models = [r['model'] for r in rows]
+    values = [r.get(metric) for r in rows]
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(models, values)
+    ax.set_title(f"Model Comparison - {metric}")
+    ax.set_ylabel(metric)
+    for i, v in enumerate(values):
+        ax.text(i, v, f"{v:.3f}", ha='center', va='bottom', fontsize=9)
+    os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    return out_png
+

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-XGBoost 回归：构建/训练/评估/推理
-接口与你的 reg_pipeline 对齐：定义 TASK/ALGO, build(cfg), fit(model, df, cfg), inference(model, df, cfg)
+LightGBM 回归：构建/训练/评估/推理
 """
 from typing import Dict, Any, Tuple, List
 import os, json, joblib
@@ -16,9 +15,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 
 TASK = "reg"
-ALGO = "XGBoost"
+ALGO = "LightGBM"
 
-# ----------------------- helpers -----------------------
 def _safe_cfg(cfg: Dict[str, Any]):
     out_cfg = cfg.get("outputs", {}) or {}
     base_dir = out_cfg.get("base_dir", "outputs")
@@ -66,47 +64,48 @@ def _ensure_dir(path: str):
 def _save_json(obj: dict, path: str):
     _ensure_dir(path)
     with open(path, "w", encoding="utf-8") as f:
+        import json
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
-# ----------------------- API -----------------------
 def build(cfg: Dict[str, Any]):
-    # reg_pipeline 会把这个返回值传给 fit 的第一个参数；此处不依赖它
     return {"cfg": cfg}
 
 def fit(model, df: pd.DataFrame, cfg: Dict[str, Any]):
-    from xgboost import XGBRegressor
+    try:
+        from lightgbm import LGBMRegressor
+    except Exception as e:
+        raise ImportError("请先安装 lightgbm：pip install lightgbm") from e
 
+    # ---- 安全读配置（有默认值）----
     base_dir, tag, prep, viz_cfg, seed = _safe_cfg(cfg)
+
+    # ---- 列选择与拆分 ----
     X, num_cols, cat_cols, target = _select_columns(df, cfg)
     y = df[target].values
 
+    # ---- 预处理器 + 模型 ----
     pre = _build_preprocessor(num_cols, cat_cols, prep)
-
     params = dict(cfg.get("model", {}).get("params", {}))
-    # 安全补默认
     params.setdefault("random_state", seed)
-    params.setdefault("tree_method", "hist")
-    params.setdefault("n_estimators", 400)
-    # XGBRegressor 的并行参数是 n_jobs
-    params.setdefault("n_jobs", -1)
-
-    xgb = XGBRegressor(**params)
-    pipe = Pipeline([("pre", pre), ("model", xgb)])
+    lgbm = LGBMRegressor(**params)
+    pipe = Pipeline([("pre", pre), ("model", lgbm)])
 
     test_size = cfg.get("split", {}).get("test_size", 0.2)
     rnd = cfg.get("split", {}).get("random_state", seed)
     shuffle = bool(cfg.get("split", {}).get("shuffle", True))
     X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=test_size, random_state=rnd, shuffle=shuffle)
 
+    # ---- 训练 & 预测 ----
     pipe.fit(X_tr, y_tr)
     preds = pipe.predict(X_te)
 
+    # ---- 指标 ----
     rmse = float(np.sqrt(mean_squared_error(y_te, preds)))
     mae = float(mean_absolute_error(y_te, preds))
     r2 = float(r2_score(y_te, preds))
     metrics = {"MAE": mae, "RMSE": rmse, "R2": r2}
 
-    # 保存产物
+    # ---- 落盘 ----
     preds_path = f"{base_dir}/predictions/{tag}_preds.csv"
     _ensure_dir(preds_path)
     pd.DataFrame({"true": y_te, "pred": preds}).to_csv(preds_path, index=False, encoding="utf-8")
@@ -118,19 +117,12 @@ def fit(model, df: pd.DataFrame, cfg: Dict[str, Any]):
     report_path = f"{base_dir}/reports/{tag}_metrics.json"
     _save_json({"metrics": metrics}, report_path)
 
-    # 可选可视化（若后续接入你自定义的 viz，可在此处调用）
-    # if bool(viz_cfg.get("enabled", False)):
-    #     outdir = viz_cfg.get("out_dir", f"{base_dir}/plots/reg/{tag}")
-    #     _ensure_dir(outdir)
-    #     dpi = int(viz_cfg.get("dpi", 160))
-    #     # 例如：残差图、预测-真实散点等
-
-    return {"metrics": metrics,
-            "artifacts": {"predictions_csv": preds_path, "model_path": model_path, "report_path": report_path}}
-
-def inference(model, df: pd.DataFrame, cfg: Dict[str, Any]):
-    # 这里的 model 如果是上面的 joblib.load 的 pipeline，则可直接 predict
-    target = cfg["dataset"].get("target")
-    X = df.drop(columns=[target]) if target and target in df.columns else df.copy()
-    y_pred = model.predict(X)
-    return {"predictions": pd.DataFrame({"pred": y_pred})}
+    # ---- 返回值（关键）----
+    return {
+        "metrics": metrics,
+        "artifacts": {
+            "predictions_csv": preds_path,
+            "model_path": model_path,
+            "report_path": report_path
+        }
+    }

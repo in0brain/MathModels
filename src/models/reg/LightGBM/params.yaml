@@ -1,0 +1,15 @@
+task: reg
+model:
+  name: LightGBM
+  params:
+    n_estimators: 600
+    learning_rate: 0.05
+    num_leaves: 31
+    subsample: 0.9
+    colsample_bytree: 0.9
+    reg_lambda: 0.0
+    random_state: 42
+dataset:
+  test_size: 0.2
+outputs:
+  base_dir: outputs

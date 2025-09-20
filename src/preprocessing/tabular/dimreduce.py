@@ -2,6 +2,8 @@
 from typing import Dict, Any, Optional, List
 import joblib
 import pandas as pd
+
+from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
 class PcaReduceTask(PreprocessTask):
@@ -28,7 +30,7 @@ class PcaReduceTask(PreprocessTask):
         out_df = df.drop(columns=X_cols).copy()
         for i, name in enumerate(comp_cols):
             out_df[name] = X_new[:, i]
-
+        io.ensure_dir(out)
         out_df.to_csv(out, index=False)
         if pca_model_out:
             joblib.dump({"pca": pca, "cols": X_cols}, pca_model_out)

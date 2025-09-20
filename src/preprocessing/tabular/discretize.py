@@ -2,6 +2,7 @@
 from typing import Dict, Any, Optional, List
 import numpy as np
 import pandas as pd
+from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
 class BinEqualWidthTask(PreprocessTask):
@@ -14,6 +15,7 @@ class BinEqualWidthTask(PreprocessTask):
         df = pd.read_csv(path)
         cat = pd.cut(df[col], bins=bins, labels=labels, right=right)
         df[col + "_bin"] = cat.astype(str)
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "col": col, "bins": bins}
 register_task("bin_equal_width", BinEqualWidthTask)
@@ -28,6 +30,7 @@ class BinEqualFreqTask(PreprocessTask):
         df = pd.read_csv(path)
         cat = pd.qcut(df[col], q=q, labels=labels, duplicates=duplicates)
         df[col + "_bin"] = cat.astype(str)
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "col": col, "q": q}
 register_task("bin_equal_freq", BinEqualFreqTask)
@@ -58,6 +61,7 @@ class BinInfoGainOnceTask(PreprocessTask):
             if gain > best_gain:
                 best_gain, best_t = gain, float(t)
         df[f"{x_col}_bin"] = (df[x_col] <= best_t).astype(int)
+        io.ensure_dir(out)
         df.to_csv(out, index=False)
         return {"out": out, "x_col": x_col, "y_col": y_col, "threshold": best_t, "info_gain": best_gain}
 register_task("bin_info_gain_once", BinInfoGainOnceTask)

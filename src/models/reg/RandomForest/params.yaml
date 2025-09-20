@@ -1,0 +1,11 @@
+task: reg
+model:
+  name: RandomForest
+  params:
+    n_estimators: 500
+    max_depth: null
+    random_state: 42
+dataset:
+  test_size: 0.2
+outputs:
+  base_dir: outputs

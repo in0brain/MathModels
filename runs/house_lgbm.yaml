@@ -1,0 +1,39 @@
+task: reg
+
+dataset:
+  path: outputs/data/artifacts/tabular/house_enc.csv
+  target: price
+
+split:
+  test_size: 0.2
+  random_state: 42
+  shuffle: true
+
+preprocess:
+  impute_num: median
+  scale_num: true
+  one_hot_cat: true
+  impute_cat: most_frequent
+
+model:
+  name: LightGBM
+  params:
+    n_estimators: 600
+    learning_rate: 0.05
+    num_leaves: 31
+    subsample: 0.9
+    colsample_bytree: 0.9
+    reg_lambda: 0.0
+    # 不写 random_state，交给 seed 自动补
+
+outputs:
+  base_dir: outputs
+  tag: lgbm_baseline
+
+eval:
+  metrics: ["MAE","RMSE","R2"]
+
+viz:
+  enabled: true
+  dpi: 160
+  out_dir: outputs/plots/reg/lgbm_baseline

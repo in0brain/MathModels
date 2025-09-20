@@ -52,6 +52,9 @@ def run(config_path: str):
     print("[reg_pipeline] fitting...")
     result = algo.module.fit(model, df, cfg)
 
+    if result is None:
+        print("[reg_pipeline] warn: fit() returned None; continuing without result dict")
+        result = {}
     # ===== 7. 打印训练完成信息 =====
     print("[reg_pipeline] done.")
     print("[reg_pipeline] metrics:", result.get("metrics"))

@@ -94,9 +94,9 @@ def run(config_path: str):
     X_combined_before = np.vstack((Xs_sample, Xt_sample))
     X_tsne_before = tsne.fit_transform(X_combined_before)
     plt.figure(figsize=(10, 8))
-    plt.scatter(X_tsne_before[:sample_size, 0], X_tsne_before[:sample_size, 1], c='blue', label='源域 (Source)',
+    plt.scatter(X_tsne_before[:sample_size, 0], X_tsne_before[:sample_size, 1], c='blue', label='source_domain (Source)',
                 alpha=0.5)
-    plt.scatter(X_tsne_before[sample_size:, 0], X_tsne_before[sample_size:, 1], c='red', label='目标域 (Target)',
+    plt.scatter(X_tsne_before[sample_size:, 0], X_tsne_before[sample_size:, 1], c='red', label='target_domain (Target)',
                 alpha=0.5)
     plt.title('Data Distribution Before Adaptation in TCA(t-SNE_Viz)')
     plt.legend()

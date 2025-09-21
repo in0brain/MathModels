@@ -9,6 +9,14 @@ import os
 from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
+# 新增：导入 pywt 用于连续小波变换
+# 请确保已安装此库: pip install PyWavelets
+try:
+    import pywt
+except ImportError:
+    raise ImportError(
+        "CWT feature extraction requires the 'PyWavelets' library. Please install it using 'pip install PyWavelets' and add 'PyWavelets' to your requirements.txt")
+
 
 def get_time_domain_features(window: np.ndarray) -> Dict[str, float]:
     """提取单个信号窗口的时域特征"""
@@ -67,9 +75,48 @@ def get_envelope_features(window: np.ndarray, fs: float) -> Dict[str, float]:
     }
 
 
+def get_cwt_features(window: np.ndarray, fs: float, wavelet_name: str = 'morl', num_scales: int = 64) -> Dict[
+    str, float]:
+    """
+    (新增) 提取单个信号窗口的连续小波变换（CWT）特征。
+    """
+    # 定义尺度，通常与小波和信号长度有关
+    scales = np.arange(1, num_scales + 1)
+
+    # 执行CWT
+    # sampling_period = 1.0 / fs
+    coefficients, frequencies = pywt.cwt(window, scales, wavelet_name, sampling_period=1.0 / fs)
+
+    # CWT系数是复数，我们通常使用其幅度的平方（能量）
+    cwt_energy = np.abs(coefficients) ** 2
+
+    # 提取特征
+    total_energy = np.sum(cwt_energy)
+    mean_energy_per_scale = np.mean(cwt_energy, axis=1)
+
+    # 定义频带（示例，可以根据物理先验进行调整）
+    low_freq_band = (frequencies > 0) & (frequencies <= fs / 8)
+    mid_freq_band = (frequencies > fs / 8) & (frequencies <= fs / 4)
+    high_freq_band = (frequencies > fs / 4) & (frequencies <= fs / 2)
+
+    # 计算不同频带的能量
+    energy_low = np.sum(cwt_energy[low_freq_band, :]) if np.any(low_freq_band) else 0
+    energy_mid = np.sum(cwt_energy[mid_freq_band, :]) if np.any(mid_freq_band) else 0
+    energy_high = np.sum(cwt_energy[high_freq_band, :]) if np.any(high_freq_band) else 0
+
+    return {
+        'cwt_total_energy': total_energy,
+        'cwt_mean_energy': np.mean(mean_energy_per_scale),
+        'cwt_std_energy': np.std(mean_energy_per_scale),
+        'cwt_energy_low_freq_band': energy_low,
+        'cwt_energy_mid_freq_band': energy_mid,
+        'cwt_energy_high_freq_band': energy_high
+    }
+
+
 class ExtractSignalFeaturesTask(PreprocessTask):
     """
-    从信号数据中分窗并提取时域、频域和包络谱特征。
+    从信号数据中分窗并提取时域、频域、包络谱和CWT特征。
     """
 
     def run(self) -> Dict[str, Any]:
@@ -89,7 +136,6 @@ class ExtractSignalFeaturesTask(PreprocessTask):
             raw_signal = df_signal["signal"].values
 
             # 1. 重采样 (Resample)
-            # 源域有12k/48k, 目标域32k。统一到24k。
             current_fs = self.get_sampling_rate(row)
             if current_fs != target_fs:
                 num_samples = int(len(raw_signal) * target_fs / current_fs)
@@ -109,6 +155,8 @@ class ExtractSignalFeaturesTask(PreprocessTask):
                 features.update(get_time_domain_features(window))
                 features.update(get_freq_domain_features(window, target_fs))
                 features.update(get_envelope_features(window, target_fs))
+                # --- 新增：调用CWT特征提取 ---
+                features.update(get_cwt_features(window, target_fs))
 
                 # 合并元数据
                 features.update(row.to_dict())
@@ -131,10 +179,8 @@ class ExtractSignalFeaturesTask(PreprocessTask):
         if meta_row["domain"] == "target":
             return 32000.0
 
-        # 源域数据根据传感器和文件名判断
         filename = meta_row["original_file"]
         if "48K" in filename.upper() or meta_row["sensor"] == 'DE' and ('_2' in filename or '_3' in filename):
-            # 48kHz DE数据通常在载荷为2或3时
             return 48000.0
         else:
             return 12000.0

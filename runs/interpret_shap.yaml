@@ -1,0 +1,21 @@
+task: interpretability
+
+# 输入文件
+# 已经训练好的模型
+model_path: "outputs/models/source_xgb_baseline.pkl"
+# 包含所有特征的数据集
+features_path: "outputs/data/artifacts/features.parquet"
+# 标签编码器
+label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
+
+# SHAP 分析参数
+shap_params:
+  # 我们将从源域数据中抽样一部分作为背景数据来解释模型
+  background_samples: 200
+  # 我们将为目标域中随机选择的几个样本生成局部解释
+  num_local_explanations: 5
+
+# 输出配置
+outputs:
+  base_dir: "outputs/figs/interpretability"
+  global_plot_path: "outputs/figs/interpretability/shap_global_summary.png"

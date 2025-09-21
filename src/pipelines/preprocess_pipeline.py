@@ -8,7 +8,7 @@ from src.preprocessing.base import build_task
 
 def _load_all_tasks():
     import importlib, pkgutil
-    for pkg in ("src.preprocessing.tabular", "src.preprocessing.vision"):
+    for pkg in ("src.preprocessing.tabular", "src.preprocessing.vision", "src.preprocessing.signal"):
         try:
             m = importlib.import_module(pkg)
         except Exception:

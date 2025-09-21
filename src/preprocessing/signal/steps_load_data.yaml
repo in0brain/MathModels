@@ -1,0 +1,12 @@
+# src/preprocessing/signal/steps_load_data.yaml
+steps:
+  - name: load_bearing_data
+    params:
+      # 【需要修改】请将 "path/to/your/source_data" 替换为源域数据的实际文件夹路径
+      source_dir: data/source_domain
+
+      # 【需要修改】请将 "path/to/your/target_data" 替换为目标域数据的实际文件夹路径
+      target_dir: data/target_domain
+
+      # 指定处理后的信号文件和元数据清单的输出位置
+      out_dir: outputs/data/artifacts/signal_parquet

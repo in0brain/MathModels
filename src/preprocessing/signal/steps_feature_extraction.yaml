@@ -1,0 +1,19 @@
+# src/preprocessing/signal/steps_feature_extraction.yaml
+steps:
+  - name: extract_signal_features # 指定执行我们新创建的特征提取任务。
+    params:
+      # 输入：指定输入文件，即上一步 load_bearing_data 任务生成的总清单
+      manifest_path: outputs/data/artifacts/manifest.csv
+
+      # 输出：指定输出文件，这是一个 Parquet 文件，将包含从所有信号的所有窗口中提取的全部特征。
+      out_path: outputs/data/artifacts/features.parquet
+
+      # --- 信号处理参数 (与方案对应) ---
+      # 目标统一采样率 (Hz) 对应方案中的“统一采样率至24kHz”
+      target_fs: 24000
+
+      # 分窗大小 (点数)，对应方案中的“固定分窗……长度为 ℓ=4096 个采样点
+      window_size: 4096
+
+      # 窗口重叠率 (0.0 to 1.0)， 对应方案中的“步长为50%重叠”
+      overlap: 0.5

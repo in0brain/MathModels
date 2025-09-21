@@ -98,7 +98,7 @@ def run(config_path: str):
                 alpha=0.5)
     plt.scatter(X_tsne_before[sample_size:, 0], X_tsne_before[sample_size:, 1], c='red', label='目标域 (Target)',
                 alpha=0.5)
-    plt.title('TCA领域自适应前的数据分布 (t-SNE可视化)')
+    plt.title('Data Distribution Before Adaptation in TCA(t-SNE_Viz)')
     plt.legend()
     io.ensure_dir(cfg["outputs"]["visualization_path_before"])
     plt.savefig(cfg["outputs"]["visualization_path_before"])
@@ -116,10 +116,10 @@ def run(config_path: str):
     # 绘制目标域点，按预测标签着色
     plt.scatter(X_tsne_after[sample_size:, 0], X_tsne_after[sample_size:, 1], c=sampled_target_preds, cmap='cool',
                 marker='x', alpha=0.7, s=20)
-    plt.title('TCA领域自适应后的数据分布 (t-SNE可视化)')
+    plt.title('Data Distribution After Adaptation in TCA(t-SNE_Viz)') #TCA领域自适应后的数据分布
     # 创建图例
-    source_patch = mpatches.Patch(color='purple', label='源域 (按真实标签着色)')
-    target_patch = plt.Line2D([0], [0], marker='x', color='w', label='目标域 (按预测标签着色)', markerfacecolor='red',
+    source_patch = mpatches.Patch(color='purple', label='source_domain (label_Coloring)')
+    target_patch = plt.Line2D([0], [0], marker='x', color='w', label='target_domain (label_Coloring)', markerfacecolor='red',
                               markersize=10)
     plt.legend(handles=[source_patch, target_patch])
     io.ensure_dir(cfg["outputs"]["visualization_path_after"])

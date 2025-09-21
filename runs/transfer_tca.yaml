@@ -1,0 +1,26 @@
+# 任务配置
+task: transfer_diagnosis
+
+# 输入文件
+# 已经训练好的源域模型
+source_model_path: "outputs/models/source_xgb_baseline.pkl"
+# 包含源域和目标域所有特征的完整数据集
+features_path: "outputs/data/artifacts/features.parquet"
+# 标签编码器，用于解码预测结果
+label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
+
+# TCA 算法参数
+tca_params:
+  n_components: 50      # 降维后的特征维度
+  kernel_type: 'rbf'    # 核函数类型: 'linear' 或 'rbf'
+  gamma: 1.0            # RBF核的参数
+
+# 输出配置
+outputs:
+  base_dir: "outputs"
+  tag: "tca_transfer" # 实验标签
+  # 目标域预测结果的保存路径
+  target_predictions_path: "outputs/predictions/XGBoost/target_preds_tca.csv"
+  # 可视化结果保存路径
+  visualization_path_before: "outputs/figs/transfer/tsne_before_tca.png"
+  visualization_path_after: "outputs/figs/transfer/tsne_after_tca.png"

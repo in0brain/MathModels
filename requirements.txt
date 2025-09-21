@@ -23,3 +23,5 @@ opencv-python
 pyarrow
 tqdm
 lightgbm
+PyWavelets
+shap

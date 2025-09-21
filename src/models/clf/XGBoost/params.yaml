@@ -1,0 +1,42 @@
+
+task: clf
+dataset:
+  # 输入我们上一步生成的特征文件
+  path: outputs/data/artifacts/features.parquet
+  # 目标列是故障类型
+  target: fault_type
+
+# 数据划分配置，对应方案中的 GroupKFold
+split:
+  n_splits: 5 # 5折交叉验证，取其中一折作为验证集
+
+model:
+  name: XGBoost
+  params:
+    # 对应方案中的XGBoost超参数建议
+    objective: 'multi:softprob'
+    eval_metric: 'mlogloss'
+    n_estimators: 600
+    learning_rate: 0.08
+    max_depth: 7
+    subsample: 0.9
+    colsample_bytree: 0.8
+    use_label_encoder: False
+
+# 评估指标
+eval:
+  metrics: [ACC, F1, ROC_AUC]
+
+# 可视化配置
+viz:
+  enabled: true
+  dpi: 160
+  plots:
+    cm: true # 绘制混淆矩阵 (Confusion Matrix)
+
+# 产出物路径和命名
+outputs:
+  base_dir: outputs
+  tag: source_xgb_baseline # 实验标签
+
+seed: 42

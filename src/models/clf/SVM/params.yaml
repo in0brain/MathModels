@@ -1,0 +1,25 @@
+# src/models/clf/SVM/params.yaml
+task: clf
+dataset:
+  path: "" # 这个路径将由对比流水线动态提供
+  target: fault_type
+  feature_prefixes: ["td_"] # 特征前缀，将被流水线动态修改
+
+split:
+  n_splits: 5
+
+model:
+  name: SVM
+  params:
+    C: 1.0
+    kernel: 'rbf'
+    gamma: 'scale'
+
+eval:
+  metrics: [ACC, F1]
+
+outputs:
+  base_dir: outputs
+  tag: "" # 实验标签，将由对比流水线动态提供
+
+seed: 42

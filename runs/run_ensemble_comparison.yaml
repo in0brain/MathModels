@@ -1,0 +1,41 @@
+# runs/run_ensemble_comparison.yaml
+# --- 要对比的三个独立模型 ---
+models:
+  # 1. 基于时域特征的SVM
+  time_domain:
+    name: "SVM"
+    features_path: "outputs/data/artifacts/features_td.parquet"
+    feature_prefixes: ["td_"]
+    params:
+      C: 1.0
+      kernel: 'rbf'
+
+  # 2. 基于频域特征的SVM
+  freq_domain:
+    name: "SVM"
+    features_path: "outputs/data/artifacts/features_fd.parquet"
+    feature_prefixes: ["fd_", "env_"]
+    params:
+      C: 1.0
+      kernel: 'rbf'
+
+  # 3. 基于时频域特征的SVM
+  cwt_domain:
+    name: "SVM"
+    features_path: "outputs/data/artifacts/features_cwt.parquet"
+    feature_prefixes: ["cwt_"]
+    params:
+      C: 10.0 # CWT特征可能更具判别性，给一个更高的C值
+      kernel: 'rbf'
+
+# --- 通用配置 ---
+split:
+  n_splits: 5
+
+eval:
+  metrics: [ACC, F1]
+
+outputs:
+  report_path: "outputs/reports/ensemble_comparison_report.json"
+
+seed: 42

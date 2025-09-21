@@ -1,0 +1,13 @@
+# src/preprocessing/signal/steps_feature_extraction_separated.yaml
+steps:
+  - name: extract_signal_features_separated # 指定执行我们新的分离式特征提取任务
+    params:
+      manifest_path: outputs/data/artifacts/manifest.csv
+      target_fs: 24000
+      window_size: 4096
+      overlap: 0.5
+      # (新增) 指定三个独立的输出文件路径
+      out_paths:
+        time_domain: outputs/data/artifacts/features_td.parquet
+        freq_domain: outputs/data/artifacts/features_fd.parquet
+        cwt_domain: outputs/data/artifacts/features_cwt.parquet

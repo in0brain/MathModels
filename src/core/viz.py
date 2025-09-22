@@ -282,9 +282,9 @@ def plot_tsne_distribution(source_data: np.ndarray,
 
     plt.figure(figsize=(10, 8))
     plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
-                c='blue', label='源域 (Source)', alpha=0.5)
+                c='blue', label='source_domain', alpha=0.5)
     plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
-                c='red', label='目标域 (Target)', alpha=0.5)
+                c='red', label='target_domain', alpha=0.5)
     plt.title(title, fontsize=16)
     plt.legend()
     _ensure_dir(out_png)
@@ -301,14 +301,14 @@ def plot_tsne_after_adaptation(source_latent: np.ndarray,
                                title: str,
                                dpi=160):
     """
-    (新增) 绘制领域自适应后，在对齐空间中的t-SNE分布图。
-    源域按真实标签着色，目标域按预测标签着色。
+    (Corrected) Draws the t-SNE distribution after domain adaptation.
+    Source domain is colored by true labels, target domain by predicted labels.
     """
     print(f"Generating t-SNE plot for adapted space: {title}...")
 
     combined_data = np.vstack((source_latent, target_latent))
 
-    # 初始化t-SNE
+    # Initialize t-SNE
     perplexity = min(30.0, len(combined_data) - 1)
     tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
     tsne_results = tsne.fit_transform(combined_data)
@@ -316,20 +316,25 @@ def plot_tsne_after_adaptation(source_latent: np.ndarray,
     num_source = len(source_latent)
 
     plt.figure(figsize=(10, 8))
-    # 绘制源域点，按真实标签着色
+    # Plot Source Domain points, colored by true labels
     plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
-                c=source_labels, cmap='viridis', alpha=0.5, s=10)
-    # 绘制目标域点，按预测标签着色，并使用不同标记
+                c=source_labels, cmap='viridis', alpha=0.5, s=15)
+    # Plot Target Domain points, colored by predicted labels using a valid colormap
     plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
-                c=target_labels, cmap='cool', marker='x', alpha=0.7, s=20)
+                c=target_labels, cmap='cool', marker='x', alpha=0.7, s=25)
     plt.title(title, fontsize=16)
 
-    # 创建自定义图例
-    source_patch = mpatches.Patch(color='purple', label='源域 (按真实标签着色)')
-    target_patch = plt.Line2D([0], [0], marker='x', color='w',
-                              label='目标域 (按预测标签着色)',
-                              markerfacecolor='red', markersize=10)
-    plt.legend(handles=[source_patch, target_patch])
+    # --- 最终修正版图例代码 ---
+    # 创建自定义图例句柄 (handles)
+    source_patch = plt.Line2D([0], [0], marker='o', color='gray', linestyle='None',
+                              label='Source Domain (colored by true label)',
+                              markersize=10)
+    target_patch = plt.Line2D([0], [0], marker='x', color='magenta', linestyle='None',
+                              label='Target Domain (colored by predicted label)',
+                              markersize=10)
+
+    # 将图例放置在右上角
+    plt.legend(handles=[source_patch, target_patch], loc='upper right')
 
     _ensure_dir(out_png)
     plt.savefig(out_png, dpi=dpi, bbox_inches="tight")

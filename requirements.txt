@@ -25,3 +25,8 @@ tqdm
 lightgbm
 PyWavelets
 shap
+torch
+torchaudio
+torchvision
+tensorflow
+

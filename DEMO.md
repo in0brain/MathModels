@@ -16,12 +16,14 @@ python -m src.pipelines.preprocess_pipeline --config src/preprocessing/signal/st
 python -m src.pipelines.clf_pipeline --config src/models/clf/XGBoost/params.yaml
 
 # === 题目 3：迁移诊断与目标域标定 ===
-# 4. 执行TCA迁移并预测目标域标签
+# 4.1 执行TCA迁移并预测目标域标签
 python -m src.pipelines.transfer_pipeline --config runs/transfer_tca.yaml
+# 4.2 执行DANN迁移并预测目标域标签
+python -m src.pipelines.dann_pipeline --config runs/transfer_dann.yaml
 
 # === 题目 4：可解释性分析 ===
 # 5. 生成SHAP图，解释模型决策
-python -m src.pipelines.interpretability_pipeline --config runs/interpret_shap.yaml
+python -m src.pipelines.interpretability_pipeline --config runs/interpret_tca_shap.yaml
 ```
 
 
@@ -175,7 +177,7 @@ MathModels/
 
 #### 原题陈述：
 
-**源域故障诊断：**在任务1提取的故障特征基础上，划分源域训练集与测试集。设计合适的诊断模型实现源域诊断任务，并对诊断结果进行评价
+**源域故障诊断**：在任务1提取的故障特征基础上，划分源域训练集与测试集。设计合适的诊断模型实现源域诊断任务，并对诊断结果进行评价
 
 ---
 
@@ -234,7 +236,7 @@ MathModels/
 
 ##### 2. 设计合适的诊断模型
 
-在完成了特征提取和数据集划分后，任务的核心是设计一个能够充分利用这些特征、实现高精度诊断的模型。我们的设计思路是**“强模型配强特征”**，即选择一个足够强大和先进的机器学习模型，来匹配我们在任务一中精心构建的多模态混合特征集。
+在完成了特征提取和数据集划分后，任务的核心是设计一个能够充分利用这些特征、实现高精度诊断的模型。我们的设计思路是“**强模型配强特征**”，即选择一个足够强大和先进的机器学习模型，来匹配我们在任务一中精心构建的多模态混合特征集。
 
 - **诊断模型的设计与选择**
 
@@ -486,7 +488,7 @@ MathModels/
   - **产出文件**：`outputs/figs/transfer/tsne_after_tca.png`
 - **产出文件内容与分析**：
   - 这张图展示了在应用TCA算法后，源域和目标域数据在t-SNE降维空间中的分布情况。
-  - **分析**：与迁移前的图像相比，在这张图中，代表源域和目标域的数据点**显著地混合在了一起**。我们可以清晰地看到，不同颜色的簇（代表不同故障类型）是跨越了两个域的，例如，某个代表“内圈故障”的黄色簇中，既包含了源域的彩色点，也包含了目标域的'x'标记。这强有力地证明了TCA算法成功地**消除了领域差异**，将两个域的数据分布拉近，是迁移学习有效性的直接视觉证据。
+  - **分析**：与迁移前的图像相比，在这张图中，代表源域和目标域的数据点**显著地混合在了一起**。我们可以清晰地看到，不同颜色的簇（代表不同故障类型）是跨越了两个域的，例如，某个代表“内圈故障”的黄色簇中，既包含了源域的彩色点，也包含了目标域的'x'标记。这证明了TCA算法成功地**消除了领域差异**，将两个域的数据分布拉近，是迁移学习有效性的直接视觉证据。
 
 ---
 

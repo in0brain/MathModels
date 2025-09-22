@@ -1,0 +1,37 @@
+# 任务配置
+task: transfer_diagnosis_dann
+
+# 输入文件
+features_path: "outputs/data/artifacts/features.parquet"
+label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
+
+# DANN 模型与训练参数
+model:
+  name: "DANN"
+  # 输入特征的维度，必须与features.parquet中的特征数量一致
+  input_dim: 21
+  # 特征提取器的网络结构（每一层神经元的数量）
+  #第一层：从21个输入特征映射到128个神经元。
+  #第二层：从128个神经元映射到64个神经元。
+  #这个网络的最终输出是一个64维的特征向量，我们希望这个向量是“领域不变”的。
+  feature_extractor_arch: [128, 64]
+  # 标签预测器的网络结构
+  label_predictor_arch: [32]
+  # 领域判别器的网络结构
+  domain_discriminator_arch: [32]
+
+training_params:
+  learning_rate: 0.001
+  num_epochs: 30 # 先用30轮快速验证，效果好可以增加到50-100
+  batch_size: 128
+  # 对抗损失的权重(lambda)，这是DANN最重要的超参数之一
+  # 初始可以设为0.5，后续可以尝试在 0.1 到 1.0 之间调整
+  adversarial_lambda: 0.5
+
+# 输出配置
+outputs:
+  base_dir: "outputs"
+  tag: "dann_transfer_v1"
+  model_path: "outputs/models/dann_final_model.pth" # 保存PyTorch模型
+  target_predictions_path: "outputs/predictions/DANN/target_preds_dann.csv"
+  visualization_path: "outputs/figs/transfer/tsne_after_dann.png"

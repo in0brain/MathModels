@@ -8,6 +8,7 @@
 3. 回归可视化（特征重要性、残差直方图、预测散点）
 4. 分类可视化（ROC 曲线、PR 曲线、混淆矩阵）
 5. (新增) 可解释性可视化（SHAP 瀑布图）
+6. (新增) 迁移学习可视化（t-SNE 分布）
 所有函数均支持保存为 PNG 文件。
 """
 import os
@@ -17,10 +18,11 @@ import seaborn as sns
 import shap  # 新增：为SHAP图导入shap库
 
 sns.set_theme(style="whitegrid")  # 新增：全局统一主题
+
 # 工具函数：确保目录存在
 def _ensure_dir(path: str):
     # 取输出路径的父目录，如果不存在则创建
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
 # ========== 1) 时间序列可视化 ==========
 
@@ -234,7 +236,7 @@ def plot_reg_compare(rows, metric: str, out_png: str, dpi=160):
     ax.set_ylabel(metric)
     for i, v in enumerate(values):
         ax.text(i, v, f"{v:.3f}", ha='center', va='bottom', fontsize=9)
-    os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
+    _ensure_dir(out_png)
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_png
@@ -275,43 +277,110 @@ def plot_shap_waterfall_new(explanation_object, out_png: str, max_display=15, dp
     plt.close(fig)
     return out_png
 
-
 # ========== 6) 迁移学习可视化 ==========
-import matplotlib.patches as mpatches
+import matplotlib.patches as mpatches  # 保留以兼容旧代码
+from matplotlib.lines import Line2D    # 新增：用于自定义图例句柄
 from sklearn.manifold import TSNE
-
 
 def plot_tsne_distribution(source_data: np.ndarray,
                            target_data: np.ndarray,
                            out_png: str,
                            title: str,
-                           dpi=160):
+                           dpi=300):
     """
-    (新增) 绘制源域和目标域数据的t-SNE分布图。
+    绘制源域与目标域的 t-SNE 分布。
+    - 源域：实心圆（白色细描边）
+    - 目标域：实心三角形（白色细描边）
     """
     print(f"Generating t-SNE plot: {title}...")
 
-    # 合并数据用于t-SNE拟合
+    # 合并数据用于 t-SNE 拟合（共享坐标系）
     combined_data = np.vstack((source_data, target_data))
-
-    # 初始化t-SNE，注意处理样本量小于perplexity的情况
-    perplexity = min(30.0, len(combined_data) - 1)
-    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
-
+    perplexity = float(max(5, min(30, len(combined_data) - 1)))
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', verbose=0)
     tsne_results = tsne.fit_transform(combined_data)
 
-    num_source = len(source_data)
+    n_src = len(source_data)
+    Zs, Zt = tsne_results[:n_src], tsne_results[n_src:]
 
-    plt.figure(figsize=(10, 8))
-    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
-                c='blue', label='source_domain', alpha=0.5)
-    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
-                c='red', label='target_domain', alpha=0.5)
-    plt.title(title, fontsize=16)
-    plt.legend()
+    # 统一颜色（仅用于两域整体区分时这里给单色；若要分类别，请用下面 after_adaptation 函数）
+    src_color = "#4C78A8"
+    tgt_color = "#F58518"
+
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=dpi)
+    ax.scatter(
+        Zs[:, 0], Zs[:, 1],
+        s=24, marker="o",
+        facecolors=src_color, edgecolors="white",
+        linewidths=0.6, alpha=0.95, zorder=2, label="source_domain"
+    )
+    ax.scatter(
+        Zt[:, 0], Zt[:, 1],
+        s=34, marker="^",
+        facecolors=tgt_color, edgecolors="white",
+        linewidths=0.6, alpha=0.95, zorder=3, label="target_domain"
+    )
+
+    ax.set_title(title, fontsize=16)
+    ax.set_xlabel("t-SNE dim 1"); ax.set_ylabel("t-SNE dim 2")
+    ax.grid(True, alpha=0.25)
+    ax.legend()
     _ensure_dir(out_png)
-    plt.savefig(out_png, dpi=dpi, bbox_inches="tight")
-    plt.close()
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    return out_png
+
+from matplotlib.lines import Line2D
+from sklearn.manifold import TSNE
+
+def plot_tsne_distribution(source_data: np.ndarray,
+                           target_data: np.ndarray,
+                           out_png: str,
+                           title: str,
+                           dpi=300):
+    """
+    绘制源域与目标域的 t-SNE 分布。
+    - 源域：实心圆（白色细描边）
+    - 目标域：实心三角形（白色细描边）
+    """
+    print(f"Generating t-SNE plot: {title}...")
+
+    # 合并数据用于 t-SNE 拟合（共享坐标系）
+    combined_data = np.vstack((source_data, target_data))
+    perplexity = float(max(5, min(30, len(combined_data) - 1)))
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', verbose=0)
+    tsne_results = tsne.fit_transform(combined_data)
+
+    n_src = len(source_data)
+    Zs, Zt = tsne_results[:n_src], tsne_results[n_src:]
+
+    # 统一颜色（仅用于两域整体区分时这里给单色；若要分类别，请用下面 after_adaptation 函数）
+    src_color = "#4C78A8"
+    tgt_color = "#F58518"
+
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=dpi)
+    ax.scatter(
+        Zs[:, 0], Zs[:, 1],
+        s=24, marker="o",
+        facecolors=src_color, edgecolors="white",
+        linewidths=0.6, alpha=0.95, zorder=2, label="source_domain"
+    )
+    ax.scatter(
+        Zt[:, 0], Zt[:, 1],
+        s=34, marker="^",
+        facecolors=tgt_color, edgecolors="white",
+        linewidths=0.6, alpha=0.95, zorder=3, label="target_domain"
+    )
+
+    ax.set_title(title, fontsize=16)
+    ax.set_xlabel("t-SNE dim 1"); ax.set_ylabel("t-SNE dim 2")
+    ax.grid(True, alpha=0.25)
+    ax.legend()
+    _ensure_dir(out_png)
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
     return out_png
 
 
@@ -321,44 +390,72 @@ def plot_tsne_after_adaptation(source_latent: np.ndarray,
                                target_labels: np.ndarray,
                                out_png: str,
                                title: str,
-                               dpi=160):
+                               dpi=300):
     """
-    (Corrected) Draws the t-SNE distribution after domain adaptation.
-    Source domain is colored by true labels, target domain by predicted labels.
+    领域自适应后的 t-SNE 可视化：
+    - 源域：实心圆（与真实标签同色），白色细描边
+    - 目标域：实心三角形（与预测标签同色），白色细描边
+    - 源/目标共用同一调色盘；一次性在拼接特征上拟合 t-SNE
     """
     print(f"Generating t-SNE plot for adapted space: {title}...")
 
+    # 1) 共享嵌入
     combined_data = np.vstack((source_latent, target_latent))
+    perplexity = float(max(5, min(40, len(combined_data) - 1)))
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', verbose=0)
+    Z_all = tsne.fit_transform(combined_data)
+    n_src = len(source_latent)
+    Zs, Zt = Z_all[:n_src], Z_all[n_src:]
 
-    # Initialize t-SNE
-    perplexity = min(30.0, len(combined_data) - 1)
-    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
-    tsne_results = tsne.fit_transform(combined_data)
+    # 2) 统一颜色映射（同一类=同一颜色）
+    all_labels = np.concatenate([source_labels, target_labels])
+    uniq = np.unique(all_labels)
+    cmap = plt.cm.get_cmap("tab20" if len(uniq) > 10 else "tab10", len(uniq))
+    color_of = {lab: cmap(i) for i, lab in enumerate(uniq)}
 
-    num_source = len(source_latent)
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=dpi)
 
-    plt.figure(figsize=(10, 8))
-    # Plot Source Domain points, colored by true labels
-    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
-                c=source_labels, cmap='viridis', alpha=0.5, s=15)
-    # Plot Target Domain points, colored by predicted labels using a valid colormap
-    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
-                c=target_labels, cmap='cool', marker='x', alpha=0.7, s=25)
-    plt.title(title, fontsize=16)
+    # 源域：实心圆（下层）
+    for lab in uniq:
+        idx = (source_labels == lab)
+        if np.any(idx):
+            ax.scatter(
+                Zs[idx, 0], Zs[idx, 1],
+                s=24, marker="o",
+                facecolors=[color_of[lab]], edgecolors="white",
+                linewidths=0.6, alpha=0.95, zorder=2
+            )
 
-    # --- 最终修正版图例代码 ---
-    # 创建自定义图例句柄 (handles)
-    source_patch = plt.Line2D([0], [0], marker='o', color='gray', linestyle='None',
-                              label='Source Domain (colored by true label)',
-                              markersize=10)
-    target_patch = plt.Line2D([0], [0], marker='x', color='magenta', linestyle='None',
-                              label='Target Domain (colored by predicted label)',
-                              markersize=10)
+    # 目标域：实心三角形（上层）
+    for lab in uniq:
+        idx = (target_labels == lab)
+        if np.any(idx):
+            ax.scatter(
+                Zt[idx, 0], Zt[idx, 1],
+                s=36, marker="^",
+                facecolors=[color_of[lab]], edgecolors="white",
+                linewidths=0.6, alpha=0.98, zorder=3
+            )
 
-    # 将图例放置在右上角
-    plt.legend(handles=[source_patch, target_patch], loc='upper right')
+    # 清晰图例（代理句柄）
+    legend_elems = [
+        Line2D([0], [0], marker='o', color='white',
+               markerfacecolor='gray', markeredgecolor='white',
+               markeredgewidth=0.6, markersize=8, linewidth=0,
+               label='Source Domain (true label)'),
+        Line2D([0], [0], marker='^', color='white',
+               markerfacecolor='gray', markeredgecolor='white',
+               markeredgewidth=0.6, markersize=8, linewidth=0,
+               label='Target Domain (pred label)'),
+    ]
+    ax.legend(handles=legend_elems, loc="upper right", frameon=True)
+
+    ax.set_title(title, fontsize=15, pad=10)
+    ax.set_xlabel("t-SNE dim 1"); ax.set_ylabel("t-SNE dim 2")
+    ax.grid(True, alpha=0.25)
 
     _ensure_dir(out_png)
-    plt.savefig(out_png, dpi=dpi, bbox_inches="tight")
-    plt.close()
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
     return out_png

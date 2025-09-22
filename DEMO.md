@@ -17,9 +17,9 @@ python -m src.pipelines.clf_pipeline --config src/models/clf/XGBoost/params.yaml
 
 # === 题目 3：迁移诊断与目标域标定 ===
 # 4.1 执行TCA迁移并预测目标域标签
-python -m src.pipelines.transfer_pipeline --config runs/transfer_tca.yaml
+python -m src.pipelines.transfer_tca_pipeline --config runs/transfer_tca.yaml
 # 4.2 执行DANN迁移并预测目标域标签
-python -m src.pipelines.dann_pipeline --config runs/transfer_dann.yaml
+python -m src.pipelines.transfer_dann_pipeline --config runs/transfer_dann.yaml
 
 # === 题目 4：可解释性分析 ===
 # 5. 生成SHAP图，解释模型决策

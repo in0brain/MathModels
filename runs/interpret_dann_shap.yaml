@@ -1,0 +1,23 @@
+task: interpretability_dann
+
+# 输入文件
+# 我们训练好的DANN模型
+model_path: "outputs/models/dann_final_model.pth"
+# 包含所有特征的数据集
+features_path: "outputs/data/artifacts/features.parquet"
+# 标签编码器
+label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
+# DANN模型构建所需的配置文件
+dann_config_path: "runs/transfer_dann.yaml"
+
+# SHAP 分析参数
+shap_params:
+  # 我们将从源域数据中抽样一部分作为背景数据来解释模型
+  background_samples: 200
+  # 我们将为目标域中随机选择的几个样本生成局部解释
+  num_local_explanations: 5
+
+# 输出配置
+outputs:
+  base_dir: "outputs/figs/interpretability_dann"
+  global_plot_path: "outputs/figs/interpretability_dann/shap_global_summary.png"

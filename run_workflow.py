@@ -77,7 +77,7 @@ def main():
 
     # A-5. 生成SHAP图，解释模型决策
     run_command(
-        [python_executable, "-m", "src.pipelines.interpretability_pipeline", "--config", "runs/interpret_shap.yaml"],
+        [python_executable, "-m", "src.pipelines.interpretability_pipeline", "--config", "runs/interpret_tca_shap.yaml"],
         "A-5: Generating SHAP Interpretability Plots"
     )
 

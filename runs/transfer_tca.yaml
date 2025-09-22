@@ -11,16 +11,22 @@ label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
 
 # TCA 算法参数
 tca_params:
-  n_components: 50      # 降维后的特征维度
+  n_components: 30      # 降维后的特征维度 (适当降低以增加稳定性)
   kernel_type: 'rbf'    # 核函数类型: 'linear' 或 'rbf'
-  gamma: 1.0            # RBF核的参数
+  gamma: 0.05           # RBF核的参数
+
+# (新增) 半监督迁移策略参数
+semi_supervised_params:
+  # 伪标签置信度阈值：只有当模型预测某个类别的概率高于此阈值时，
+  # 我们才认为这个伪标签是可靠的，并用它来指导TCA。
+  pseudo_label_threshold: 0.90
 
 # 输出配置
 outputs:
   base_dir: "outputs"
-  tag: "tca_transfer" # 实验标签
+  tag: "tca_transfer_v2" # 修改实验标签以区分
   # 目标域预测结果的保存路径
-  target_predictions_path: "outputs/predictions/XGBoost/target_preds_tca.csv"
+  target_predictions_path: "outputs/predictions/XGBoost/target_preds_tca_v2.csv"
   # 可视化结果保存路径
-  visualization_path_before: "outputs/figs/transfer/tsne_before_tca.png"
-  visualization_path_after: "outputs/figs/transfer/tsne_after_tca.png"
+  visualization_path_before: "outputs/figs/transfer/tsne_before_tca_v2.png"
+  visualization_path_after: "outputs/figs/transfer/tsne_after_tca_v2.png"

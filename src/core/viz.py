@@ -7,12 +7,14 @@
 2. 序列对比图（真实 vs 预测）
 3. 回归可视化（特征重要性、残差直方图、预测散点）
 4. 分类可视化（ROC 曲线、PR 曲线、混淆矩阵）
+5. (新增) 可解释性可视化（SHAP 瀑布图）
 所有函数均支持保存为 PNG 文件。
 """
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import shap  # 新增：为SHAP图导入shap库
 
 sns.set_theme(style="whitegrid")  # 新增：全局统一主题
 # 工具函数：确保目录存在
@@ -166,30 +168,40 @@ def plot_pr(y_true, proba, classes, out_png, dpi=160):
     plt.close(fig)
     return out_png
 
-def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160):
+def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160,
+                          annot_size=14, cmap="magma"):
     """
     混淆矩阵
     - 横轴：预测
     - 纵轴：真实
     """
-    cm = confusion_matrix(y_true, y_pred, labels=classes)  # 计算混淆矩阵
-    fig, ax = plt.subplots()
-    im = ax.imshow(cm, interpolation="nearest", aspect="auto")
-    ax.set_xticks(range(len(classes))); ax.set_yticks(range(len(classes)))
-    ax.set_xticklabels(classes, rotation=45, ha="right"); ax.set_yticklabels(classes)
-    ax.set_xlabel("Predicted"); ax.set_ylabel("True"); ax.set_title("Confusion Matrix")
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=dpi)
+    im = ax.imshow(cm, interpolation="nearest", aspect="auto", cmap=cmap)
+
+    ax.set_xticks(range(len(classes)))
+    ax.set_yticks(range(len(classes)))
+    ax.set_xticklabels(classes, rotation=45, ha="right")
+    ax.set_yticklabels(classes)
+    ax.set_xlabel("Predicted", fontsize=12)
+    ax.set_ylabel("True", fontsize=12)
+    ax.set_title("Confusion Matrix", fontsize=14, weight="bold")
+
     # 在每个格子中标数值
+    max_val = cm.max()
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
+            color = "white" if cm[i, j] > max_val / 2 else "black"
             ax.text(j, i, str(cm[i, j]),
-                    ha="center", va="center", fontsize=8,
-                    color="white" if cm[i,j] > cm.max()/2 else "black")
+                    ha="center", va="center",
+                    fontsize=annot_size, color=color, weight="bold")
+
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     _ensure_dir(out_png)
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_png
-from sklearn.metrics import roc_curve, auc
 
 def plot_multi_roc_compare(results: dict, out_png: str, dpi=160):
     """
@@ -227,3 +239,16 @@ def plot_reg_compare(rows, metric: str, out_png: str, dpi=160):
     plt.close(fig)
     return out_png
 
+# ========== 5) 可解释性可视化 ==========
+def plot_shap_waterfall(shap_values_instance, out_png: str, max_display=15, dpi=160):
+    """
+    (新增) 绘制并保存单个样本的SHAP瀑布图。
+    """
+    plt.figure()
+    shap.plots.waterfall(shap_values_instance, max_display=max_display, show=False)
+    fig = plt.gcf()
+    fig.tight_layout()
+    _ensure_dir(out_png)
+    fig.savefig(out_png, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+    return out_png

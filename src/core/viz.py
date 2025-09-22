@@ -252,3 +252,86 @@ def plot_shap_waterfall(shap_values_instance, out_png: str, max_display=15, dpi=
     fig.savefig(out_png, dpi=dpi, bbox_inches='tight')
     plt.close(fig)
     return out_png
+
+
+# ========== 6) 迁移学习可视化 ==========
+import matplotlib.patches as mpatches
+from sklearn.manifold import TSNE
+
+
+def plot_tsne_distribution(source_data: np.ndarray,
+                           target_data: np.ndarray,
+                           out_png: str,
+                           title: str,
+                           dpi=160):
+    """
+    (新增) 绘制源域和目标域数据的t-SNE分布图。
+    """
+    print(f"Generating t-SNE plot: {title}...")
+
+    # 合并数据用于t-SNE拟合
+    combined_data = np.vstack((source_data, target_data))
+
+    # 初始化t-SNE，注意处理样本量小于perplexity的情况
+    perplexity = min(30.0, len(combined_data) - 1)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
+
+    tsne_results = tsne.fit_transform(combined_data)
+
+    num_source = len(source_data)
+
+    plt.figure(figsize=(10, 8))
+    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
+                c='blue', label='源域 (Source)', alpha=0.5)
+    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
+                c='red', label='目标域 (Target)', alpha=0.5)
+    plt.title(title, fontsize=16)
+    plt.legend()
+    _ensure_dir(out_png)
+    plt.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close()
+    return out_png
+
+
+def plot_tsne_after_adaptation(source_latent: np.ndarray,
+                               target_latent: np.ndarray,
+                               source_labels: np.ndarray,
+                               target_labels: np.ndarray,
+                               out_png: str,
+                               title: str,
+                               dpi=160):
+    """
+    (新增) 绘制领域自适应后，在对齐空间中的t-SNE分布图。
+    源域按真实标签着色，目标域按预测标签着色。
+    """
+    print(f"Generating t-SNE plot for adapted space: {title}...")
+
+    combined_data = np.vstack((source_latent, target_latent))
+
+    # 初始化t-SNE
+    perplexity = min(30.0, len(combined_data) - 1)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
+    tsne_results = tsne.fit_transform(combined_data)
+
+    num_source = len(source_latent)
+
+    plt.figure(figsize=(10, 8))
+    # 绘制源域点，按真实标签着色
+    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
+                c=source_labels, cmap='viridis', alpha=0.5, s=10)
+    # 绘制目标域点，按预测标签着色，并使用不同标记
+    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
+                c=target_labels, cmap='cool', marker='x', alpha=0.7, s=20)
+    plt.title(title, fontsize=16)
+
+    # 创建自定义图例
+    source_patch = mpatches.Patch(color='purple', label='源域 (按真实标签着色)')
+    target_patch = plt.Line2D([0], [0], marker='x', color='w',
+                              label='目标域 (按预测标签着色)',
+                              markerfacecolor='red', markersize=10)
+    plt.legend(handles=[source_patch, target_patch])
+
+    _ensure_dir(out_png)
+    plt.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close()
+    return out_png

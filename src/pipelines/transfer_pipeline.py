@@ -5,12 +5,10 @@ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.preprocessing import StandardScaler
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+from xgboost import XGBClassifier
 
 from src.transfer.tca import TCA
-from src.core import io
+from src.core import io, viz # 导入 viz 模块
 
 
 def run(config_path: str):
@@ -69,7 +67,6 @@ def run(config_path: str):
     # 注意：源域模型是在原始特征空间训练的，不能直接用于TCA空间。
     # 正确做法是在转换后的源域数据(Xs_tca)上重新训练一个分类器。
     print("正在TCA对齐空间中训练分类器...")
-    from xgboost import XGBClassifier
     classifier_in_tca_space = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42)
     classifier_in_tca_space.fit(Xs_tca, ys)  # 在转换后的源域数据上训练
 
@@ -86,45 +83,29 @@ def run(config_path: str):
         results_df[f'proba_{class_name}'] = target_pred_proba[:, i]
     io.save_csv(results_df, cfg['outputs']['target_predictions_path'])
 
-    # === 7. 可视化 (使用相同的样本进行对比，以保证公平性) ===
+    # === 7. 可视化 (调用 src.core.viz 中的函数) ===
     print("正在生成t-SNE降维可视化图...")
-    tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, sample_size - 1), max_iter=1000, init='pca')
 
     # TCA处理前的分布
-    X_combined_before = np.vstack((Xs_sample, Xt_sample))
-    X_tsne_before = tsne.fit_transform(X_combined_before)
-    plt.figure(figsize=(10, 8))
-    plt.scatter(X_tsne_before[:sample_size, 0], X_tsne_before[:sample_size, 1], c='blue', label='源域 (Source)',
-                alpha=0.5)
-    plt.scatter(X_tsne_before[sample_size:, 0], X_tsne_before[sample_size:, 1], c='red', label='目标域 (Target)',
-                alpha=0.5)
-    plt.title('TCA领域自适应前的数据分布 (t-SNE可视化)')
-    plt.legend()
-    io.ensure_dir(cfg["outputs"]["visualization_path_before"])
-    plt.savefig(cfg["outputs"]["visualization_path_before"])
-    plt.close()
+    viz.plot_tsne_distribution(
+        source_data=Xs_sample,
+        target_data=Xt_sample,
+        out_png=cfg["outputs"]["visualization_path_before"],
+        title='Data Distribution Before Adaptation in TCA (t-SNE Viz)'
+    )
 
     # TCA处理后的分布
-    X_combined_after = np.vstack((Xs_tca[source_sample_indices], Xt_tca[target_sample_indices]))
-    X_tsne_after = tsne.fit_transform(X_combined_after)
-    plt.figure(figsize=(10, 8))
+    # 注意：为了可视化，我们只展示用于TCA拟合的样本点的标签情况
     sampled_ys = ys[source_sample_indices]
     sampled_target_preds = target_pred_labels_encoded[target_sample_indices]
-    # 绘制源域点，按真实标签着色
-    plt.scatter(X_tsne_after[:sample_size, 0], X_tsne_after[:sample_size, 1], c=sampled_ys, cmap='viridis', alpha=0.5,
-                s=10)
-    # 绘制目标域点，按预测标签着色
-    plt.scatter(X_tsne_after[sample_size:, 0], X_tsne_after[sample_size:, 1], c=sampled_target_preds, cmap='cool',
-                marker='x', alpha=0.7, s=20)
-    plt.title('TCA领域自适应后的数据分布 (t-SNE可视化)')
-    # 创建图例
-    source_patch = mpatches.Patch(color='purple', label='源域 (按真实标签着色)')
-    target_patch = plt.Line2D([0], [0], marker='x', color='w', label='目标域 (按预测标签着色)', markerfacecolor='red',
-                              markersize=10)
-    plt.legend(handles=[source_patch, target_patch])
-    io.ensure_dir(cfg["outputs"]["visualization_path_after"])
-    plt.savefig(cfg["outputs"]["visualization_path_after"])
-    plt.close()
+    viz.plot_tsne_after_adaptation(
+        source_latent=Xs_tca[source_sample_indices],
+        target_latent=Xt_tca[target_sample_indices],
+        source_labels=sampled_ys,
+        target_labels=sampled_target_preds,
+        out_png=cfg["outputs"]["visualization_path_after"],
+        title='Data Distribution After Adaptation in TCA (t-SNE Viz)'
+    )
 
     print("[迁移诊断流水线] 成功运行完毕。")
 

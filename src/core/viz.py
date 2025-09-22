@@ -253,6 +253,28 @@ def plot_shap_waterfall(shap_values_instance, out_png: str, max_display=15, dpi=
     plt.close(fig)
     return out_png
 
+def plot_shap_summary_bar(shap_values, features_df, class_names, out_png: str, dpi=160):
+    """(新增) 绘制并保存全局SHAP摘要图（条形图样式）。"""
+    plt.figure()
+    shap.summary_plot(shap_values, features_df, class_names=class_names, show=False, plot_type='bar')
+    fig = plt.gcf()
+    fig.tight_layout()
+    _ensure_dir(out_png)
+    fig.savefig(out_png, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+    return out_png
+
+def plot_shap_waterfall_new(explanation_object, out_png: str, max_display=15, dpi=160):
+    """(新增) 绘制并保存单个样本的SHAP瀑布图，接收一个SHAP Explanation对象。"""
+    plt.figure()
+    shap.plots.waterfall(explanation_object, max_display=max_display, show=False)
+    fig = plt.gcf()
+    fig.tight_layout()
+    _ensure_dir(out_png)
+    fig.savefig(out_png, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+    return out_png
+
 
 # ========== 6) 迁移学习可视化 ==========
 import matplotlib.patches as mpatches

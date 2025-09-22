@@ -17,6 +17,7 @@ model:
     objective: 'multi:softprob'
     eval_metric: 'mlogloss'
     n_estimators: 600
+    tree_method: 'gpu_hist' # <--- 添加这一行
     learning_rate: 0.08
     max_depth: 7
     subsample: 0.9

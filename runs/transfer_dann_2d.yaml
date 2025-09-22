@@ -1,0 +1,20 @@
+# [新文件] runs/transfer_dann_2d.yaml
+task: transfer_diagnosis_dann_2d
+image_manifest_path: "outputs/data/artifacts/image_manifest.csv"
+label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
+model:
+  name: "DANN"
+  # 2D-CNN架构是固定的，不再需要配置
+  label_predictor_arch: [512, 128]
+  domain_discriminator_arch: [512, 128]
+training_params:
+  learning_rate: 0.0002
+  num_epochs: 100
+  batch_size: 64 # 图像处理更耗内存，减小batch_size
+  adversarial_lambda: 0.5
+outputs:
+  base_dir: "outputs"
+  tag: "dann_2d_v1"
+  model_path: "outputs/models/dann_2d_final_model.pth"
+  target_predictions_path: "outputs/predictions/DANN/target_preds_dann_2d.csv"
+  visualization_path: "outputs/figs/transfer/tsne_after_dann_2d.png"

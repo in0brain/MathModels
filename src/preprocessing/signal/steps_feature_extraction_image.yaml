@@ -1,0 +1,9 @@
+# [新文件] src/preprocessing/signal/steps_feature_extraction_image.yaml
+steps:
+  - name: signal_to_image
+    params:
+      manifest_path: outputs/data/artifacts/manifest.csv
+      image_out_dir: outputs/data/artifacts/spectrograms
+      target_fs: 24000
+      window_size: 4096
+      overlap: 0.5

@@ -14,7 +14,7 @@ model:
   #第一层：从21个输入特征映射到128个神经元。
   #第二层：从128个神经元映射到64个神经元。
   #这个网络的最终输出是一个64维的特征向量，我们希望这个向量是“领域不变”的。
-  feature_extractor_arch: [128, 64]
+#  feature_extractor_arch: [256, 128, 64]
   # 标签预测器的网络结构
   label_predictor_arch: [32]
   # 领域判别器的网络结构
@@ -22,11 +22,11 @@ model:
 
 training_params:
   learning_rate: 0.001
-  num_epochs: 30 # 先用30轮快速验证，效果好可以增加到50-100
+  num_epochs: 200 # 先用30轮快速验证，效果好可以增加到50-100
   batch_size: 128
   # 对抗损失的权重(lambda)，这是DANN最重要的超参数之一
   # 初始可以设为0.5，后续可以尝试在 0.1 到 1.0 之间调整
-  adversarial_lambda: 0.5
+  adversarial_lambda: 0.8
 
 # 输出配置
 outputs:

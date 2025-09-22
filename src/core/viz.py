@@ -459,3 +459,66 @@ def plot_tsne_after_adaptation(source_latent: np.ndarray,
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_png
+
+
+# [建议新增] in src/core/viz.py at the end of the file
+
+def plot_tsne_by_class(source_latent: np.ndarray,
+                       target_latent: np.ndarray,
+                       source_labels: np.ndarray,
+                       target_labels: np.ndarray,
+                       class_names: list,
+                       out_png: str,
+                       title: str,
+                       dpi=160):
+    """
+    (新增) 绘制按“故障类别”着色的t-SNE分布图。
+    - 颜色代表故障类别。
+    - 标记区分源域 (实心圆) 和目标域 (实心三角)。
+    """
+    print(f"Generating class-colored t-SNE plot: {title}...")
+
+    combined_data = np.vstack((source_latent, target_latent))
+
+    # 初始化t-SNE
+    perplexity = min(30.0, len(combined_data) - 1)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', learning_rate='auto')
+    tsne_results = tsne.fit_transform(combined_data)
+
+    num_source = len(source_latent)
+    unique_labels = np.unique(np.hstack((source_labels, target_labels)))
+    colors = plt.cm.get_cmap('tab10', len(unique_labels))
+
+    plt.figure(figsize=(12, 10))
+
+    # 绘制数据点
+    # 源域
+    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
+                c=source_labels, cmap='tab10', marker='o', alpha=0.7, s=30, linewidths=0.5, edgecolors='w')
+    # 目标域
+    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
+                c=target_labels, cmap='tab10', marker='^', alpha=0.9, s=40, linewidths=0.5, edgecolors='w')
+
+    plt.title(title, fontsize=16)
+    plt.xlabel("t-SNE dimension 1")
+    plt.ylabel("t-SNE dimension 2")
+
+    # 创建一个清晰的图例
+    handles = []
+    for i, name in enumerate(class_names):
+        handles.append(mpatches.Patch(color=colors(i), label=name))
+
+    # 添加领域标记的图例
+    source_handle = plt.Line2D([0], [0], marker='o', color='w', label='Source Domain',
+                               markerfacecolor='grey', markersize=10)
+    target_handle = plt.Line2D([0], [0], marker='^', color='w', label='Target Domain',
+                               markerfacecolor='grey', markersize=10)
+    handles.extend([source_handle, target_handle])
+
+    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left', title="Classes & Domains")
+
+    _ensure_dir(out_png)
+    plt.tight_layout(rect=[0, 0, 0.85, 1])  # 为图例留出空间
+    plt.savefig(out_png, dpi=dpi)
+    plt.close()
+    return out_png

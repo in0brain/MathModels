@@ -1,4 +1,4 @@
-# src/preprocessing/signal/load_bearing_data.py
+# src/preprocessing/signal/load_bearing_data.py (修正版)
 import os
 import re
 import pandas as pd
@@ -9,27 +9,41 @@ from tqdm import tqdm
 from src.core import io
 from src.preprocessing.base import PreprocessTask, register_task
 
+
 def _parse_filename(filename: str) -> Dict[str, Any]:
     """
     从源域数据文件名中解析出故障类型、故障直径、载荷等元信息。
-    此版本已更新，以兼容 Normal 和 OR@... 格式。
+    此版本已更新，以兼容 Normal, N_*, 和 OR@... 等多种格式。
     """
     filename_no_ext = os.path.splitext(filename)[0]
 
-    # 1. 优先处理正常样本
+    # --- 新增规则：优先匹配 N_*.* 格式的Normal文件 ---
+    # 匹配 'N_0' 或 'N_1_(1772rpm)'
+    if filename_no_ext.upper().startswith('N_'):
+        try:
+            # 尝试从 N_ 之后，( 之前提取载荷
+            load_str = filename_no_ext.split('_')[1].split('(')[0]
+            load = int(load_str)
+        except (ValueError, IndexError):
+            load = -1  # 如果无法解析载荷，标记为-1
+        return {"fault_type": "Normal", "fault_size": 0.0, "load": load}
+    # ----------------------------------------------------
+
+    # 1. 其次处理包含 "normal" 字符串的样本
     if "normal" in filename.lower():
         try:
-            # 尝试从文件名末尾提取载荷，如 "Normal_0.mat"
+            # 尝试从文件名末尾提取载荷
             load = int(filename_no_ext.split('_')[-1])
         except (ValueError, IndexError):
-            load = -1 # 如果无法解析载荷，标记为-1
+            load = -1
         return {"fault_type": "Normal", "fault_size": 0.0, "load": load}
 
-    # 2. 处理故障样本 (更新版正则表达式)
+    # 2. 最后处理故障样本 (正则表达式)
     # 这个正则表达式可以匹配 B007_0, IR014_1, OR007@3_2 等格式
     match = re.match(r"([A-Z]+)(\d{3})(?:@\d+)?_(\d+)", filename_no_ext)
     if not match:
-        return {} # 如果不匹配任何规则，返回空字典
+        print(f"Warning: Could not parse filename '{filename}'. Returning empty metadata.")
+        return {}  # 如果所有规则都不匹配，返回空字典
 
     fault_map = {"OR": "OuterRace", "IR": "InnerRace", "B": "Ball"}
     fault_type_code, fault_size_code, load_str = match.groups()
@@ -47,6 +61,7 @@ class LoadBearingDataTask(PreprocessTask):
     并将每个信号保存为独立的 Parquet 文件，同时生成一个总的元数据清单。
     此版本使用 os.walk 进行递归文件搜索。
     """
+
     def run(self) -> Dict[str, Any]:
         source_dir = self.cfg["source_dir"]
         target_dir = self.cfg["target_dir"]
@@ -70,18 +85,20 @@ class LoadBearingDataTask(PreprocessTask):
 
         for filepath in tqdm(source_filepaths, desc="Source Domain"):
             filename = os.path.basename(filepath)
-            mat_data = loadmat(filepath)
 
+            # 使用修正后的解析函数
+            file_meta = _parse_filename(filename)
+            if not file_meta:  # 如果解析失败，跳过此文件
+                continue
+
+            mat_data = loadmat(filepath)
             rpm_key = next((key for key in mat_data if key.endswith("RPM")), None)
             rpm = float(mat_data[rpm_key][0][0]) if rpm_key else -1.0
-
-            file_meta = _parse_filename(filename)
 
             for key in mat_data:
                 if "_time" in key:
                     sensor = key.split("_")[1]
                     signal_data = mat_data[key].flatten()
-
                     record = {
                         "domain": "source",
                         "original_file": filename,
@@ -89,13 +106,12 @@ class LoadBearingDataTask(PreprocessTask):
                         "rpm": rpm,
                         **file_meta
                     }
-
                     out_path = os.path.join(out_dir, f"source_{os.path.splitext(filename)[0]}_{sensor}.parquet")
                     io.save_parquet(pd.DataFrame({"signal": signal_data}), out_path)
                     record["signal_path"] = out_path
                     meta_records.append(record)
 
-        # 对目标目录也应用相同的递归搜索逻辑
+        # (目标域部分代码保持不变) ...
         print(f"Recursively searching for .mat files in target domain: {target_dir}")
         target_filepaths = []
         if target_dir and os.path.exists(target_dir):
@@ -103,31 +119,20 @@ class LoadBearingDataTask(PreprocessTask):
                 for name in files:
                     if name.endswith(".mat"):
                         target_filepaths.append(os.path.join(root, name))
-
         if not target_filepaths:
-             print(f"Warning: No .mat files found in target directory: {target_dir}")
+            print(f"Warning: No .mat files found in target directory: {target_dir}")
         else:
             print(f"Found {len(target_filepaths)} target files.")
-
-
         for filepath in tqdm(target_filepaths, desc="Target Domain"):
             filename = os.path.basename(filepath)
             mat_data = loadmat(filepath)
-
             signal_key = next((k for k in mat_data if not k.startswith("__")), None)
             if signal_key:
                 signal_data = mat_data[signal_key].flatten()
-
                 record = {
-                    "domain": "target",
-                    "original_file": filename,
-                    "sensor": "Unknown",
-                    "rpm": 600,
-                    "fault_type": "Unknown",
-                    "fault_size": -1.0,
-                    "load": "Unknown"
+                    "domain": "target", "original_file": filename, "sensor": "Unknown",
+                    "rpm": 600, "fault_type": "Unknown", "fault_size": -1.0, "load": "Unknown"
                 }
-
                 out_path = os.path.join(out_dir, f"target_{os.path.splitext(filename)[0]}.parquet")
                 io.save_parquet(pd.DataFrame({"signal": signal_data}), out_path)
                 record["signal_path"] = out_path

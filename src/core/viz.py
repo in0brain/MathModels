@@ -7,12 +7,14 @@
 2. 序列对比图（真实 vs 预测）
 3. 回归可视化（特征重要性、残差直方图、预测散点）
 4. 分类可视化（ROC 曲线、PR 曲线、混淆矩阵）
+5. (新增) 可解释性可视化（SHAP 瀑布图）
 所有函数均支持保存为 PNG 文件。
 """
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import shap  # 新增：为SHAP图导入shap库
 
 sns.set_theme(style="whitegrid")  # 新增：全局统一主题
 # 工具函数：确保目录存在
@@ -166,30 +168,40 @@ def plot_pr(y_true, proba, classes, out_png, dpi=160):
     plt.close(fig)
     return out_png
 
-def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160):
+def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160,
+                          annot_size=14, cmap="magma"):
     """
     混淆矩阵
     - 横轴：预测
     - 纵轴：真实
     """
-    cm = confusion_matrix(y_true, y_pred, labels=classes)  # 计算混淆矩阵
-    fig, ax = plt.subplots()
-    im = ax.imshow(cm, interpolation="nearest", aspect="auto")
-    ax.set_xticks(range(len(classes))); ax.set_yticks(range(len(classes)))
-    ax.set_xticklabels(classes, rotation=45, ha="right"); ax.set_yticklabels(classes)
-    ax.set_xlabel("Predicted"); ax.set_ylabel("True"); ax.set_title("Confusion Matrix")
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=dpi)
+    im = ax.imshow(cm, interpolation="nearest", aspect="auto", cmap=cmap)
+
+    ax.set_xticks(range(len(classes)))
+    ax.set_yticks(range(len(classes)))
+    ax.set_xticklabels(classes, rotation=45, ha="right")
+    ax.set_yticklabels(classes)
+    ax.set_xlabel("Predicted", fontsize=12)
+    ax.set_ylabel("True", fontsize=12)
+    ax.set_title("Confusion Matrix", fontsize=14, weight="bold")
+
     # 在每个格子中标数值
+    max_val = cm.max()
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
+            color = "white" if cm[i, j] > max_val / 2 else "black"
             ax.text(j, i, str(cm[i, j]),
-                    ha="center", va="center", fontsize=8,
-                    color="white" if cm[i,j] > cm.max()/2 else "black")
+                    ha="center", va="center",
+                    fontsize=annot_size, color=color, weight="bold")
+
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     _ensure_dir(out_png)
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_png
-from sklearn.metrics import roc_curve, auc
 
 def plot_multi_roc_compare(results: dict, out_png: str, dpi=160):
     """
@@ -227,3 +239,104 @@ def plot_reg_compare(rows, metric: str, out_png: str, dpi=160):
     plt.close(fig)
     return out_png
 
+# ========== 5) 可解释性可视化 ==========
+def plot_shap_waterfall(shap_values_instance, out_png: str, max_display=15, dpi=160):
+    """
+    (新增) 绘制并保存单个样本的SHAP瀑布图。
+    """
+    plt.figure()
+    shap.plots.waterfall(shap_values_instance, max_display=max_display, show=False)
+    fig = plt.gcf()
+    fig.tight_layout()
+    _ensure_dir(out_png)
+    fig.savefig(out_png, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+    return out_png
+
+
+# ========== 6) 迁移学习可视化 ==========
+import matplotlib.patches as mpatches
+from sklearn.manifold import TSNE
+
+
+def plot_tsne_distribution(source_data: np.ndarray,
+                           target_data: np.ndarray,
+                           out_png: str,
+                           title: str,
+                           dpi=160):
+    """
+    (新增) 绘制源域和目标域数据的t-SNE分布图。
+    """
+    print(f"Generating t-SNE plot: {title}...")
+
+    # 合并数据用于t-SNE拟合
+    combined_data = np.vstack((source_data, target_data))
+
+    # 初始化t-SNE，注意处理样本量小于perplexity的情况
+    perplexity = min(30.0, len(combined_data) - 1)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
+
+    tsne_results = tsne.fit_transform(combined_data)
+
+    num_source = len(source_data)
+
+    plt.figure(figsize=(10, 8))
+    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
+                c='blue', label='source_domain', alpha=0.5)
+    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
+                c='red', label='target_domain', alpha=0.5)
+    plt.title(title, fontsize=16)
+    plt.legend()
+    _ensure_dir(out_png)
+    plt.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close()
+    return out_png
+
+
+def plot_tsne_after_adaptation(source_latent: np.ndarray,
+                               target_latent: np.ndarray,
+                               source_labels: np.ndarray,
+                               target_labels: np.ndarray,
+                               out_png: str,
+                               title: str,
+                               dpi=160):
+    """
+    (Corrected) Draws the t-SNE distribution after domain adaptation.
+    Source domain is colored by true labels, target domain by predicted labels.
+    """
+    print(f"Generating t-SNE plot for adapted space: {title}...")
+
+    combined_data = np.vstack((source_latent, target_latent))
+
+    # Initialize t-SNE
+    perplexity = min(30.0, len(combined_data) - 1)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, max_iter=1000, init='pca')
+    tsne_results = tsne.fit_transform(combined_data)
+
+    num_source = len(source_latent)
+
+    plt.figure(figsize=(10, 8))
+    # Plot Source Domain points, colored by true labels
+    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
+                c=source_labels, cmap='viridis', alpha=0.5, s=15)
+    # Plot Target Domain points, colored by predicted labels using a valid colormap
+    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
+                c=target_labels, cmap='cool', marker='x', alpha=0.7, s=25)
+    plt.title(title, fontsize=16)
+
+    # --- 最终修正版图例代码 ---
+    # 创建自定义图例句柄 (handles)
+    source_patch = plt.Line2D([0], [0], marker='o', color='gray', linestyle='None',
+                              label='Source Domain (colored by true label)',
+                              markersize=10)
+    target_patch = plt.Line2D([0], [0], marker='x', color='magenta', linestyle='None',
+                              label='Target Domain (colored by predicted label)',
+                              markersize=10)
+
+    # 将图例放置在右上角
+    plt.legend(handles=[source_patch, target_patch], loc='upper right')
+
+    _ensure_dir(out_png)
+    plt.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close()
+    return out_png

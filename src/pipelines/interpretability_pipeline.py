@@ -8,8 +8,7 @@ import shap
 import matplotlib.pyplot as plt
 import os
 
-from src.core import io
-
+from src.core import io, viz # 导入 viz 模块
 
 def run(config_path: str):
     print(f"[Interpretability Pipeline] Starting with config: {config_path}")
@@ -59,13 +58,9 @@ def run(config_path: str):
     for i in range(num_examples):
         # 为每个类别生成一个瀑布图
         for c in range(len(le.classes_)):
-            plt.figure()
-            shap.plots.waterfall(shap_values[i, :, c], max_display=15, show=False)
-            fig = plt.gcf()
-            fig.tight_layout()
+            # --- 调用解耦后的绘图函数 ---
             plot_path = os.path.join(output_dir, f"local_explanation_sample_{i}_class_{le.classes_[c]}.png")
-            fig.savefig(plot_path, bbox_inches='tight')
-            plt.close()
+            viz.plot_shap_waterfall(shap_values[i, :, c], out_png=plot_path, max_display=15)
 
     print(f"Saved {num_examples} local explanation plots to {output_dir}")
     print("[Interpretability Pipeline] Finished successfully.")

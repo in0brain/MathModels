@@ -1,5 +1,5 @@
 # 文件路径: src/pipelines/transfer_dann_pipeline.py
-# 描述: 最终版 - 结合了领域对抗(DANN)与显式距离度量(MMD)的混合迁移学习流水线，用于处理二维时频图。
+# 描述: 最终版 - 修正了NaN标签导致的类型转换错误
 
 import argparse
 import yaml
@@ -13,11 +13,14 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from PIL import Image
+import matplotlib.pyplot as plt
+import os
 
 from src.models.clf.DANN import build as dann_builder
 from src.core import io, viz
 
-# --- 自定义Dataset类用于加载图像 (保持不变) ---
+
+# --- Dataset类保持不变 ---
 class SpectrogramDataset(Dataset):
     def __init__(self, manifest_df, transform=None):
         self.manifest = manifest_df
@@ -29,16 +32,15 @@ class SpectrogramDataset(Dataset):
     def __getitem__(self, idx):
         row = self.manifest.iloc[idx]
         img_path = row['image_path']
-        image = Image.open(img_path).convert('L')  # 读取灰度图
-
-        label = row.get('encoded_label', -1)  # -1 表示目标域无标签
-
+        image = Image.open(img_path).convert('L')
+        # The label is now guaranteed to be an integer or -1
+        label = row['encoded_label']
         if self.transform:
             image = self.transform(image)
-
         if label == -1:
             return (image,)
         else:
+            # The label is already an int, so this conversion is safe
             return image, torch.tensor(label, dtype=torch.long)
 
 
@@ -51,135 +53,173 @@ def run(config_path: str):
     print("步骤1: 加载图像清单和数据...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"将使用设备: {device.type.upper()}")
-
     le = joblib.load(cfg["label_encoder_path"])
     image_manifest = pd.read_csv(cfg["image_manifest_path"])
 
-    source_domain_for_encoding = image_manifest[image_manifest['domain'] == 'source'].copy()
-    source_domain_for_encoding.dropna(subset=['fault_type'], inplace=True)
+    # 仅在源域子集上进行标签编码
+    source_df_subset = image_manifest[image_manifest['domain'] == 'source'].copy().dropna(subset=['fault_type'])
+    source_df_subset['encoded_label'] = le.transform(source_df_subset['fault_type'])
 
-    image_manifest['encoded_label'] = -1
-    image_manifest.loc[source_domain_for_encoding.index, 'encoded_label'] = le.fit_transform(
-        source_domain_for_encoding['fault_type'])
+    # 将编码后的标签合并回主清单
+    image_manifest = image_manifest.merge(source_df_subset[['image_path', 'encoded_label']], on='image_path',
+                                          how='left')
+
+    # --- 【核心修正】用-1填充目标域产生的NaN标签 ---
+    image_manifest['encoded_label'].fillna(-1, inplace=True)
+    image_manifest['encoded_label'] = image_manifest['encoded_label'].astype(int)
+    # ---------------------------------------------
 
     source_df = image_manifest[image_manifest['domain'] == 'source']
     target_df = image_manifest[image_manifest['domain'] == 'target']
     ys = source_df['encoded_label'].values
     num_classes = len(le.classes_)
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
-    ])
-
-    # --- 2. 创建PyTorch DataLoaders ---
+    # --- 2. 创建DataLoaders ---
     print("步骤2: 创建PyTorch DataLoaders...")
     batch_size = cfg['training_params']['batch_size']
     source_dataset = SpectrogramDataset(source_df, transform=transform)
     target_dataset = SpectrogramDataset(target_df, transform=transform)
-
     source_loader = DataLoader(source_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     target_loader = DataLoader(target_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
-    # --- 3. 构建DANN模型和优化器 ---
+    # --- 3. 构建模型和优化器 ---
     print("步骤3: 构建DANN模型和优化器...")
     model = dann_builder.build(cfg, num_classes).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg['training_params']['learning_rate'])
-
-    class_counts = np.bincount(ys)
+    class_counts = np.bincount(ys, minlength=num_classes)
     class_counts = np.where(class_counts == 0, 1, class_counts)
     class_weights = 1. / torch.tensor(class_counts, dtype=torch.float)
     class_weights = (class_weights / class_weights.sum() * num_classes).to(device)
-    print(f"计算出的类别权重: {class_weights.cpu().numpy()}")
-
     criterion_label = nn.CrossEntropyLoss(weight=class_weights)
     criterion_domain = nn.CrossEntropyLoss()
+
+    history = {'epoch': [], 'domain_loss': [], 'domain_accuracy': []}
 
     # --- 4. 执行混合对抗训练 ---
     print("步骤4: 开始混合对抗训练 (DANN + MMD)...")
     num_epochs = cfg['training_params']['num_epochs']
-    lambda_adv = cfg['training_params']['adversarial_lambda']
-    lambda_mmd = cfg['training_params'].get('mmd_lambda', 1.0)  # 从配置读取MMD权重
+    lambda_adv_max = cfg['training_params']['adversarial_lambda']
+    lambda_mmd = cfg['training_params'].get('mmd_lambda', 1.0)
+
+    total_steps = num_epochs * min(len(source_loader), len(target_loader))
+    current_step = 0
 
     for epoch in range(num_epochs):
         model.train()
         progress_bar = tqdm(zip(source_loader, target_loader), total=min(len(source_loader), len(target_loader)),
                             desc=f"Epoch {epoch + 1}/{num_epochs}")
 
+        epoch_domain_losses, epoch_domain_corrects, epoch_domain_total = [], 0, 0
+
         for (source_data, source_labels), (target_data,) in progress_bar:
             source_data, source_labels = source_data.to(device), source_labels.to(device)
             target_data = target_data.to(device)
             optimizer.zero_grad()
 
-            # --- 核心修改：模型现在返回三项输出 ---
-            label_output, domain_output_source, source_features = model(source_data, lambda_=lambda_adv)
-            _, domain_output_target, target_features = model(target_data, lambda_=lambda_adv)
+            p = float(current_step) / total_steps if total_steps > 0 else 0
+            dynamic_lambda = 2. / (1. + np.exp(-10. * p)) - 1
+            current_adv_lambda = dynamic_lambda * lambda_adv_max
 
-            # 计算三部分损失
+            label_output, domain_output_source, source_features = model(source_data, lambda_=current_adv_lambda)
+            _, domain_output_target, target_features = model(target_data, lambda_=current_adv_lambda)
+
             loss_label = criterion_label(label_output, source_labels)
-            loss_domain_source = criterion_domain(domain_output_source,
-                                                  torch.zeros(len(source_data), dtype=torch.long, device=device))
-            loss_domain_target = criterion_domain(domain_output_target,
-                                                  torch.ones(len(target_data), dtype=torch.long, device=device))
-            loss_mmd_val = mmd_loss(source_features, target_features)  # 计算MMD损失
-
-            # 组合成最终的混合损失函数
-            total_loss = loss_label + (loss_domain_source + loss_domain_target) + (lambda_mmd * loss_mmd_val)
-
+            domain_source_labels = torch.zeros(len(source_data), dtype=torch.long, device=device)
+            domain_target_labels = torch.ones(len(target_data), dtype=torch.long, device=device)
+            loss_domain_source = criterion_domain(domain_output_source, domain_source_labels)
+            loss_domain_target = criterion_domain(domain_output_target, domain_target_labels)
+            loss_domain = loss_domain_source + loss_domain_target
+            loss_mmd_val = mmd_loss(source_features, target_features)
+            total_loss = loss_label + loss_domain + (lambda_mmd * loss_mmd_val)
             total_loss.backward()
             optimizer.step()
 
-            # 更新进度条以显示所有损失
-            progress_bar.set_postfix(
-                total_loss=total_loss.item(),
-                loss_label=loss_label.item(),
-                loss_domain=(loss_domain_source + loss_domain_target).item(),
-                loss_mmd=loss_mmd_val.item()
-            )
+            current_step += 1
 
-    # --- 5. 对目标域进行预测 (保持不变) ---
+            epoch_domain_losses.append(loss_domain.item())
+            _, source_preds = torch.max(domain_output_source, 1)
+            _, target_preds = torch.max(domain_output_target, 1)
+            epoch_domain_corrects += torch.sum(source_preds == domain_source_labels).item()
+            epoch_domain_corrects += torch.sum(target_preds == domain_target_labels).item()
+            epoch_domain_total += len(source_data) + len(target_data)
+            progress_bar.set_postfix(loss=total_loss.item(),
+                                     domain_acc=epoch_domain_corrects / epoch_domain_total if epoch_domain_total > 0 else 0)
+
+        avg_domain_loss = np.mean(epoch_domain_losses) if epoch_domain_losses else 0
+        domain_accuracy = epoch_domain_corrects / epoch_domain_total if epoch_domain_total > 0 else 0
+        history['epoch'].append(epoch + 1)
+        history['domain_loss'].append(avg_domain_loss)
+        history['domain_accuracy'].append(domain_accuracy)
+        print(
+            f"Epoch {epoch + 1} Summary: Avg Domain Loss = {avg_domain_loss:.4f}, Domain Accuracy = {domain_accuracy:.4f}")
+
+    # --- 步骤 5, 6, 7, 8 保持不变 ---
+    # 5. 预测
     print("步骤5: 对目标域进行预测...")
     model.eval()
     all_preds = []
     with torch.no_grad():
-        for (inputs,) in DataLoader(target_dataset, batch_size=batch_size):
+        target_loader_eval = DataLoader(target_dataset, batch_size=batch_size, shuffle=False)
+        for (inputs,) in target_loader_eval:
             inputs = inputs.to(device)
-            # --- 注意：预测时不再需要特征，模型调用保持不变 ---
             label_output, _, _ = model(inputs, lambda_=0)
             preds = torch.argmax(label_output, dim=1)
             all_preds.extend(preds.cpu().numpy())
     target_pred_labels = le.inverse_transform(all_preds)
 
-    # --- 6. 保存结果 (保持不变) ---
+    # 6. 保存结果
     print(f"步骤6: 保存预测结果...")
     results_df = target_df[['original_file']].copy()
-    # 确保预测数量和元数据行数一致
-    if len(target_pred_labels) != len(results_df):
-        print(f"警告：预测数量({len(target_pred_labels)})与目标域样本数({len(results_df)})不匹配。将截断以匹配预测数量。")
-        results_df = results_df.iloc[:len(target_pred_labels)]
+    results_df = results_df.iloc[:len(target_pred_labels)].copy()
     results_df['predicted_fault_type'] = target_pred_labels
     io.save_csv(results_df, cfg['outputs']['target_predictions_path'])
     torch.save(model.state_dict(), cfg['outputs']['model_path'])
 
-    # --- 7. 可视化 (保持不变) ---
-    print("步骤7: 生成t-SNE可视化图...")
+    # 7. 绘制迁移过程图
+    print("步骤7: 生成迁移过程可解释性图表...")
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    color = 'tab:red'
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Domain Discriminator Loss', color=color)
+    ax1.plot(history['epoch'], history['domain_loss'], color=color, marker='o', label='Domain Loss')
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax2 = ax1.twinx()
+    color = 'tab:blue'
+    ax2.set_ylabel('Domain Discriminator Accuracy', color=color)
+    ax2.plot(history['epoch'], history['domain_accuracy'], color=color, marker='x', label='Domain Accuracy')
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim(0, 1.05)
+    fig.tight_layout()
+    plt.title('Interpretability of Migration Process')
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax2.legend(lines + lines2, labels + labels2, loc='center right')
+    plot_path = os.path.join(os.path.dirname(cfg['outputs']['visualization_path']),
+                             "interpretability_migration_process.png")
+    io.ensure_dir(plot_path)
+    plt.savefig(plot_path, dpi=200)
+    plt.close()
+    print(f"迁移过程图表已保存至: {plot_path}")
+
+    # 8. 绘制t-SNE图
+    print("步骤8: 生成t-SNE可视化图...")
     model.eval()
     with torch.no_grad():
         source_features_list = []
-        for (inputs, _) in DataLoader(source_dataset, batch_size=batch_size):
+        source_loader_eval = DataLoader(source_dataset, batch_size=batch_size, shuffle=False)
+        for (inputs, _) in source_loader_eval:
             inputs = inputs.to(device)
-            # --- 注意：可视化时需要提取特征 ---
             _, _, features = model(inputs, lambda_=0)
             source_features_list.append(features.cpu().numpy())
         source_features = np.vstack(source_features_list)
-
         target_features_list = []
-        for (inputs,) in DataLoader(target_dataset, batch_size=batch_size):
+        target_loader_eval = DataLoader(target_dataset, batch_size=batch_size, shuffle=False)
+        for (inputs,) in target_loader_eval:
             inputs = inputs.to(device)
             _, _, features = model(inputs, lambda_=0)
             target_features_list.append(features.cpu().numpy())
         target_features = np.vstack(target_features_list)
-
     viz.plot_tsne_by_class(
         source_latent=source_features,
         target_latent=target_features,
@@ -189,7 +229,6 @@ def run(config_path: str):
         out_png=cfg["outputs"]["visualization_path"],
         title='Class Distribution After DANN+MMD Adaptation'
     )
-
     print(f"[DANN-2D + MMD 混合迁移流水线] 成功运行完毕。")
 
 

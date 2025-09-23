@@ -12,15 +12,18 @@ model:
   name: "DANN"
   feature_extractor_type: "CNN2D"
   input_dim: 4096
+  input_height: 64   # 改成你真实的图像高度
+  input_width: 64    # 改成你真实的图像宽度
   label_predictor_arch: [512, 128]
   domain_discriminator_arch: [512, 128]
 
 training_params:
   learning_rate: 0.0002
   num_epochs: 100
-  batch_size: 64 # 图像处理更耗内存，建议使用较小的batch_size
-  adversarial_lambda: 0.5
-  mmd_lambda: 1.0 # 新增：MMD损失权重，可调
+  batch_size: 64
+  # Increase this value to put more "pressure" on the feature extractor to fool the discriminator
+  adversarial_lambda: 1.0  # Or even 1.5
+  mmd_lambda: 1.0
 
 # 输出配置 (修改tag以区分实验)
 outputs:

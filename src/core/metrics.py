@@ -7,7 +7,7 @@ metrics.py
 - evaluate_regression : 回归任务的 MAE / R2
 - evaluate_classification : 分类任务的 ACC / F1 / ROC_AUC
 """
-
+import torch
 import numpy as np
 from sklearn.metrics import (
     mean_absolute_error,
@@ -84,3 +84,16 @@ def evaluate_classification(y_true, y_pred, proba=None, classes=None, metrics=("
             out["ROC_AUC"] = None  # Or np.nan
 
     return out
+
+def gaussian_kernel(x, y, sigma=1.0):
+    # 计算高斯核
+    beta = 1. / (2. * sigma)
+    dist = torch.cdist(x, y)
+    return torch.exp(-beta * dist.pow(2))
+
+def mmd_loss(source_features, target_features, sigma=1.0):
+    # 计算MMD损失
+    xx = gaussian_kernel(source_features, source_features, sigma).mean()
+    yy = gaussian_kernel(target_features, target_features, sigma).mean()
+    xy = gaussian_kernel(source_features, target_features, sigma).mean()
+    return xx + yy - 2 * xy

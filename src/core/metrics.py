@@ -10,6 +10,7 @@ metrics.py
 
 # ===== 基础依赖 =====
 import numpy as np  # 数值计算（数组、均值、比较等）
+import torch
 
 # 回归与分类常用指标从 sklearn 引入
 from sklearn.metrics import (
@@ -100,3 +101,16 @@ def evaluate_classification(y_true, y_pred, proba=None, classes=None, metrics=("
             out["ROC_AUC"] = float(roc_auc_score(y_true, proba, multi_class="ovr", average="macro"))
 
     return out                              # 返回指标结果
+
+def gaussian_kernel(x, y, sigma=1.0):
+    # 计算高斯核
+    beta = 1. / (2. * sigma)
+    dist = torch.cdist(x, y)
+    return torch.exp(-beta * dist.pow(2))
+
+def mmd_loss(source_features, target_features, sigma=1.0):
+    # 计算MMD损失
+    xx = gaussian_kernel(source_features, source_features, sigma).mean()
+    yy = gaussian_kernel(target_features, target_features, sigma).mean()
+    xy = gaussian_kernel(source_features, target_features, sigma).mean()
+    return xx + yy - 2 * xy

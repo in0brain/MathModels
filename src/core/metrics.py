@@ -10,7 +10,6 @@ metrics.py
 
 # ===== 基础依赖 =====
 import numpy as np  # 数值计算（数组、均值、比较等）
-import torch
 
 # 回归与分类常用指标从 sklearn 引入
 from sklearn.metrics import (
@@ -96,21 +95,15 @@ def evaluate_classification(y_true, y_pred, proba=None, classes=None, metrics=("
         # 二分类：若为一维概率（仅正类概率），直接用；若为二维需自行选取正类列
         if proba.ndim == 1 or (proba.ndim == 2 and proba.shape[1] == 1):
             out["ROC_AUC"] = float(roc_auc_score(y_true, proba))
+        # 【*** 修改点 ***】
+        # 解决了当 y_true 中类别数少于 proba 列数时的报错问题
+        elif classes is not None and len(np.unique(y_true)) < len(classes):
+            # 获取所有可能的类别标签的整数索引 [0, 1, 2, ...]
+            all_labels = np.arange(len(classes))
+            # 在 roc_auc_score 中传入 labels 参数
+            out["ROC_AUC"] = float(roc_auc_score(y_true, proba, multi_class="ovr", average="macro", labels=all_labels))
         else:
             # 多分类：一对多（ovr）宏平均
             out["ROC_AUC"] = float(roc_auc_score(y_true, proba, multi_class="ovr", average="macro"))
 
     return out                              # 返回指标结果
-
-def gaussian_kernel(x, y, sigma=1.0):
-    # 计算高斯核
-    beta = 1. / (2. * sigma)
-    dist = torch.cdist(x, y)
-    return torch.exp(-beta * dist.pow(2))
-
-def mmd_loss(source_features, target_features, sigma=1.0):
-    # 计算MMD损失
-    xx = gaussian_kernel(source_features, source_features, sigma).mean()
-    yy = gaussian_kernel(target_features, target_features, sigma).mean()
-    xy = gaussian_kernel(source_features, target_features, sigma).mean()
-    return xx + yy - 2 * xy

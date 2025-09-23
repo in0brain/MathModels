@@ -4,7 +4,6 @@ import sys
 import os
 import shutil
 
-
 def run_command(command, description):
     """一个辅助函数，用于执行命令行命令并打印清晰的日志信息"""
     print("=" * 80)
@@ -46,65 +45,76 @@ def main():
     python_executable = sys.executable
 
     # ===================================================================
-    # 任务 A：运行主方案 (回答题目 1, 2, 3, 4)
+    # 题目一：数据分析与故障特征提取
     # ===================================================================
 
-    # A-1. 加载和结构化原始数据
+    # 步骤 1-1: 加载和结构化原始数据
+    # 作用：读取所有 .mat 文件，提取信号和元数据，生成统一的 manifest.csv 清单。
     run_command(
         [python_executable, "-m", "src.pipelines.preprocess_pipeline", "--config",
          "src/preprocessing/signal/steps_load_data.yaml"],
-        "A-1: Loading and Structuring Raw Data"
+        "Question 1-1: Loading and Structuring Raw Data"
     )
 
-    # A-2. 提取混合特征 (包含CWT)
+    # 步骤 1-2: 提取用于源域模型训练的混合特征 (24kHz)
+    # 作用：基于24kHz采样率，提取时域、频域、包络谱和CWT特征，为训练一个强大的源域模型做准备。
+    #      这个模型及其标签编码器是后续迁移学习的基础。
     run_command(
         [python_executable, "-m", "src.pipelines.preprocess_pipeline", "--config",
          "src/preprocessing/signal/steps_feature_extraction.yaml"],
-        "A-2: Extracting Mixed Features for Main Solution"
+        "Question 1-2: Extracting Mixed Features (24kHz) for Source Model"
     )
 
-    # A-3. 训练源域诊断模型 (XGBoost on Mixed Features)
+    # ===================================================================
+    # 题目二：源域故障诊断
+    # ===================================================================
+
+    # 步骤 2-1: 训练源域诊断模型 (XGBoost)
+    # 作用：在24kHz的混合特征上，使用严格的防泄漏划分方法，训练一个高性能的XGBoost分类器。
+    #      核心产出物 source_xgb_baseline.pkl 和 source_xgb_baseline_label_encoder.pkl 是题目三的关键输入。
     run_command(
         [python_executable, "-m", "src.pipelines.clf_pipeline", "--config", "src/models/clf/XGBoost/params.yaml"],
-        "A-3: Training Source Domain XGBoost Model"
+        "Question 2-1: Training Source Domain XGBoost Model"
     )
 
-    # A-4. 执行TCA迁移并预测目标域标签
+    # ===================================================================
+    # 题目三：迁移诊断 (最终方案：基于原始信号的DANN+MHDCNN)
+    # ===================================================================
+    # 根据我们的探索历程，直接在原始信号上使用先进的MHDCNN进行端到端迁移，效果优于在手工特征上进行迁移。
+
+    # 步骤 3-1: 执行DANN+MHDCNN迁移，并对目标域进行标定
+    # 作用：这是题目三的核心解答。该流水线会：
+    #      1. 自动加载原始信号 (基于manifest.csv)。
+    #      2. 使用内置的MHDCNN作为特征提取器，DANN进行领域对齐。
+    #      3. 训练端到端的迁移模型。
+    #      4. 预测目标域标签，并生成最终的可视化t-SNE图。
     run_command(
-        [python_executable, "-m", "src.pipelines.transfer_pipeline", "--config", "runs/transfer_tca.yaml"],
-        "A-4: Performing Transfer Diagnosis with TCA"
+        [python_executable, "-m", "src.pipelines.transfer_dann_raw_signal_pipeline", "--config", "runs/transfer_dann_mhdcnn_raw.yaml"],
+        "Question 3-1: Performing Transfer Diagnosis with DANN+MHDCNN on Raw Signals"
     )
 
-    # A-5. 生成SHAP图，解释模型决策
+    # ===================================================================
+    # 题目四：迁移诊断的可解释性
+    # ===================================================================
+    # 注意：由于SHAP的DeepExplainer是为DANN这类深度模型设计的，我们需要一个独立的解释性流水线。
+    # 我们将对题目二训练的、基于明确物理特征的XGBoost模型进行事后可解释性分析，
+    # 这样可以将模型的决策依据与我们提取的物理特征直接关联起来，更具说服力。
+
+    # 步骤 4-1: 生成SHAP图，解释源域模型的决策过程
+    # 作用：加载在题目二中训练好的XGBoost模型和24kHz特征集，
+    #      应用SHAP框架来分析模型在诊断目标域数据时，主要依赖哪些物理特征（如包络谱峰值、峭度等）。
+    #      这直接回答了“模型决策过程”的可解释性问题。
     run_command(
         [python_executable, "-m", "src.pipelines.interpretability_pipeline", "--config", "runs/interpret_tca_shap.yaml"],
-        "A-5: Generating SHAP Interpretability Plots"
-    )
-
-    # ===================================================================
-    # 任务 B：运行对比实验方案
-    # ===================================================================
-
-    # B-1. 提取分离式特征
-    run_command(
-        [python_executable, "-m", "src.pipelines.preprocess_pipeline", "--config",
-         "src/preprocessing/signal/steps_feature_extraction_separated.yaml"],
-        "B-1: Extracting Separated Features for Comparison"
-    )
-
-    # B-2. 运行投票集成对比流水线 (会自动训练三个独立SVM模型并评估)
-    run_command(
-        [python_executable, "-m", "src.pipelines.ensemble_pipeline", "--config", "runs/run_ensemble_comparison.yaml"],
-        "B-2: Running Ensemble Voting Comparison Pipeline"
+        "Question 4-1: Generating SHAP Plots for Post-hoc Interpretability Analysis"
     )
 
     print("=" * 80)
-    print("🎉 ALL TASKS COMPLETED SUCCESSFULLY! 🎉")
+    print("ALL TASKS COMPLETED SUCCESSFULLY! ")
     print("Please check the 'outputs' directory for all generated results, models, and plots.")
     print("=" * 80)
 
 
 if __name__ == "__main__":
-    # 确保在运行前，所有必要的配置文件路径都已正确设置
     print("Starting the entire diagnostic workflow...")
     main()

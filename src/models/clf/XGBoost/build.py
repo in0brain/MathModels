@@ -116,7 +116,23 @@ def fit(model: XGBClassifier, df: pd.DataFrame, cfg: Dict[str, Any]):
         dpi = cfg["viz"].get("dpi", 160)
         if cfg["viz"].get("plots", {}).get("cm", True):
             cm_path = os.path.join(base_dir, "figs", "clf", f"{tag}_cm.png")
-            viz.plot_confusion_matrix(y_val_raw, le.inverse_transform(y_pred), le.classes_, cm_path, dpi=dpi)
+            # viz.plot_confusion_matrix(y_val_raw, le.inverse_transform(y_pred), le.classes_, cm_path, dpi=dpi)
+            if cfg.get("viz", {}).get("enabled", True):
+                dpi = cfg["viz"].get("dpi", 160)
+                if cfg["viz"].get("plots", {}).get("cm", True):
+                    cm_path = os.path.join(base_dir, "figs", "clf", f"{tag}_cm.png")
+                    # --- MODIFIED LINE ---
+                    # Set normalize=True to get percentages, like in the thesis.
+                    viz.plot_confusion_matrix(
+                        y_val_raw,
+                        le.inverse_transform(y_pred),
+                        le.classes_,
+                        cm_path,
+                        dpi=dpi,
+                        normalize=True,
+                        cmap='YlGnBu'  # A colormap similar to the thesis
+                    )
+                    fig_paths.append(cm_path)
             fig_paths.append(cm_path)
 
     return {

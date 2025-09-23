@@ -1,0 +1,17 @@
+# runs/hyperopt_xgb_32k.yaml
+# 针对32kHz特征集的XGBoost超参数优化配置
+
+dataset:
+  path: "outputs/data/artifacts/features_32k.parquet" # <--- 关键：指向32k的特征文件
+  target: "fault_type"
+
+# 交叉验证配置
+cv:
+  n_splits: 5 # 使用5折交叉验证来评估每组参数的性能
+
+# Optuna优化器配置
+trials: 50 # 建议至少进行50次尝试以获得较好的结果
+
+# 报告输出目录
+report:
+  out_dir: "outputs/reports/hyperopt_32k"

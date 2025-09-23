@@ -13,11 +13,19 @@
 """
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import shap  # 新增：为SHAP图导入shap库
+import shap
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, confusion_matrix
+import matplotlib.patches as mpatches
+from matplotlib.lines import Line2D
+from sklearn.manifold import TSNE
 
-sns.set_theme(style="whitegrid")  # 新增：全局统一主题
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 指定默认字体
+plt.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+
+sns.set_theme(style="whitegrid")
 
 # 工具函数：确保目录存在
 def _ensure_dir(path: str):
@@ -26,13 +34,43 @@ def _ensure_dir(path: str):
 
 # ========== 1) 时间序列可视化 ==========
 
+def plot_waveform_grid(signals: dict, out_png: str, dpi=160):
+    """
+    (新增) 绘制2x2的信号时域波形图，风格与刘嘉欣论文对齐。
+
+    参数:
+        signals (dict): 一个字典，键为子图标题(如 "正常", "外圈故障")，值为一维信号数据 (numpy array)。
+                       最多支持4个信号。
+        out_png (str): 输出PNG文件路径。
+        dpi (int): 图像分辨率。
+    """
+    if len(signals) > 4:
+        print("Warning: Waveform grid plot supports a maximum of 4 signals. Taking the first 4.")
+        signals = {k: v for i, (k, v) in enumerate(signals.items()) if i < 4}
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 5), dpi=dpi)
+    axes = axes.flatten()  # 将2x2的axes数组展平为一维
+
+    for i, (title, data) in enumerate(signals.items()):
+        ax = axes[i]
+        ax.plot(data)
+        ax.set_title(title)
+        ax.set_xlabel("采样点")
+        ax.set_ylabel("幅值 (m/s²)")
+        ax.autoscale(enable=True, axis='x', tight=True) # x轴紧凑
+
+    # 隐藏多余的子图
+    for i in range(len(signals), len(axes)):
+        axes[i].set_visible(False)
+
+    fig.tight_layout()
+    _ensure_dir(out_png)
+    fig.savefig(out_png)
+    plt.close(fig)
+    print(f"时域波形图已保存至: {out_png}")
+    return out_png
+
 def plot_transition_heatmap(P: np.ndarray, labels, out_png: str, dpi=160):
-    """
-    状态转移矩阵热力图
-    P: n×n 概率矩阵
-    labels: 状态名列表
-    out_png: 输出文件路径
-    """
     fig, ax = plt.subplots()
     im = ax.imshow(P, aspect="auto", origin="upper")
     ax.set_xticks(range(len(labels))); ax.set_xticklabels(labels)
@@ -45,15 +83,10 @@ def plot_transition_heatmap(P: np.ndarray, labels, out_png: str, dpi=160):
     return out_png
 
 def plot_sequence_compare(y_true, y_pred, out_png: str, dpi=160):
-    """
-    序列对比图（真实 vs 预测）
-    将离散状态映射为整数，方便绘制折线对比
-    """
     uniq = sorted(set(list(y_true) + list(y_pred)))
     idx = {s: i for i, s in enumerate(uniq)}
     yt = [idx[s] for s in y_true]
     yp = [idx[s] for s in y_pred]
-
     fig, ax = plt.subplots()
     ax.plot(yt, label="true", linewidth=1)
     ax.plot(yp, label="pred", linewidth=1)
@@ -68,9 +101,6 @@ def plot_sequence_compare(y_true, y_pred, out_png: str, dpi=160):
 # ========== 2) 回归任务可视化 ==========
 
 def plot_feature_importance(importances, feature_names, out_png, dpi=160, top=30):
-    """
-    特征重要性条形图
-    """
     imp = np.asarray(importances)
     idx = np.argsort(imp)[::-1][:top]
     names = np.array(feature_names)[idx]
@@ -85,9 +115,6 @@ def plot_feature_importance(importances, feature_names, out_png, dpi=160, top=30
     return out_png
 
 def plot_residuals(y_true, y_pred, out_png, dpi=160, bins=30):
-    """
-    残差直方图
-    """
     res = np.asarray(y_true) - np.asarray(y_pred)
     fig, ax = plt.subplots()
     ax.hist(res, bins=bins)
@@ -98,9 +125,6 @@ def plot_residuals(y_true, y_pred, out_png, dpi=160, bins=30):
     return out_png
 
 def plot_pred_scatter(y_true, y_pred, out_png, dpi=160):
-    """
-    预测值 vs 真实值散点图
-    """
     yt = np.asarray(y_true); yp = np.asarray(y_pred)
     fig, ax = plt.subplots()
     ax.scatter(yt, yp, s=10)
@@ -118,9 +142,6 @@ def plot_pred_scatter(y_true, y_pred, out_png, dpi=160):
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, confusion_matrix
 
 def plot_roc(y_true, proba, classes, out_png, dpi=160):
-    """
-    ROC 曲线
-    """
     fig, ax = plt.subplots()
     y_true = np.asarray(y_true)
     if proba.shape[1] == 2:
@@ -140,9 +161,6 @@ def plot_roc(y_true, proba, classes, out_png, dpi=160):
     return out_png
 
 def plot_pr(y_true, proba, classes, out_png, dpi=160):
-    """
-    PR 曲线（精确率-召回率）
-    """
     fig, ax = plt.subplots()
     y_true = np.asarray(y_true)
     if proba.shape[1] == 2:
@@ -160,33 +178,36 @@ def plot_pr(y_true, proba, classes, out_png, dpi=160):
     plt.close(fig)
     return out_png
 
+
+
 def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160,
-                          annot_size=14, cmap="magma"):
+                          annot_size=14, cmap="YlGnBu", normalize=False):
     """
-    混淆矩阵
+    (已修改) 混淆矩阵. 新增 normalize 参数以匹配论文风格。
     """
     cm = confusion_matrix(y_true, y_pred, labels=classes)
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=dpi)
-    im = ax.imshow(cm, interpolation="nearest", aspect="auto", cmap=cmap)
-    ax.set_xticks(range(len(classes)))
-    ax.set_yticks(range(len(classes)))
-    ax.set_xticklabels(classes, rotation=45, ha="right")
-    ax.set_yticklabels(classes)
-    ax.set_xlabel("Predicted", fontsize=12)
-    ax.set_ylabel("True", fontsize=12)
-    ax.set_title("Confusion Matrix", fontsize=14, weight="bold")
 
-    max_val = cm.max()
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            color = "white" if cm[i, j] > max_val / 2 else "black"
-            ax.text(j, i, str(cm[i, j]),
-                    ha="center", va="center",
-                    fontsize=annot_size, color=color, weight="bold")
+    # --- 新增：归一化逻辑 ---
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        fmt = '.2f'  # 格式化为两位小数
+    else:
+        fmt = 'd'  # 保持为整数
 
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig, ax = plt.subplots(figsize=(8, 7), dpi=dpi)
+    sns.heatmap(cm, annot=True, fmt=fmt, ax=ax, cmap=cmap,
+                xticklabels=classes, yticklabels=classes,
+                annot_kws={"size": annot_size})
+
+    ax.set_xlabel("Predicted") # 预测标签
+    ax.set_ylabel(" True") #真实标签
+    ax.set_title("Confusion Matrix", fontsize=14, weight="bold") #混淆矩阵
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+
     _ensure_dir(out_png)
-    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(out_png)
     plt.close(fig)
     return out_png
 
@@ -266,106 +287,8 @@ import matplotlib.patches as mpatches  # 保留以兼容旧代码
 from matplotlib.lines import Line2D    # 新增：用于自定义图例句柄
 from sklearn.manifold import TSNE
 
-def plot_tsne_distribution(source_data: np.ndarray,
-                           target_data: np.ndarray,
-                           out_png: str,
-                           title: str,
-                           dpi=300):
-    """
-    绘制源域与目标域的 t-SNE 分布。
-    - 源域：实心圆（白色细描边）
-    - 目标域：实心三角形（白色细描边）
-    """
-    print(f"Generating t-SNE plot: {title}...")
-
-    # 合并数据用于 t-SNE 拟合（共享坐标系）
-    combined_data = np.vstack((source_data, target_data))
-    perplexity = float(max(5, min(30, len(combined_data) - 1)))
-    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', verbose=0)
-    tsne_results = tsne.fit_transform(combined_data)
-
-    n_src = len(source_data)
-    Zs, Zt = tsne_results[:n_src], tsne_results[n_src:]
-
-    # 统一颜色（仅用于两域整体区分时这里给单色；若要分类别，请用下面 after_adaptation 函数）
-    src_color = "#4C78A8"
-    tgt_color = "#F58518"
-
-    fig, ax = plt.subplots(figsize=(10, 8), dpi=dpi)
-    ax.scatter(
-        Zs[:, 0], Zs[:, 1],
-        s=24, marker="o",
-        facecolors=src_color, edgecolors="white",
-        linewidths=0.6, alpha=0.95, zorder=2, label="source_domain"
-    )
-    ax.scatter(
-        Zt[:, 0], Zt[:, 1],
-        s=34, marker="^",
-        facecolors=tgt_color, edgecolors="white",
-        linewidths=0.6, alpha=0.95, zorder=3, label="target_domain"
-    )
-
-    ax.set_title(title, fontsize=16)
-    ax.set_xlabel("t-SNE dim 1"); ax.set_ylabel("t-SNE dim 2")
-    ax.grid(True, alpha=0.25)
-    ax.legend()
-    _ensure_dir(out_png)
-    fig.tight_layout()
-    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-    return out_png
-
 from matplotlib.lines import Line2D
 from sklearn.manifold import TSNE
-
-def plot_tsne_distribution(source_data: np.ndarray,
-                           target_data: np.ndarray,
-                           out_png: str,
-                           title: str,
-                           dpi=300):
-    """
-    绘制源域与目标域的 t-SNE 分布。
-    - 源域：实心圆（白色细描边）
-    - 目标域：实心三角形（白色细描边）
-    """
-    print(f"Generating t-SNE plot: {title}...")
-
-    # 合并数据用于 t-SNE 拟合（共享坐标系）
-    combined_data = np.vstack((source_data, target_data))
-    perplexity = float(max(5, min(30, len(combined_data) - 1)))
-    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', verbose=0)
-    tsne_results = tsne.fit_transform(combined_data)
-
-    n_src = len(source_data)
-    Zs, Zt = tsne_results[:n_src], tsne_results[n_src:]
-
-    # 统一颜色（仅用于两域整体区分时这里给单色；若要分类别，请用下面 after_adaptation 函数）
-    src_color = "#4C78A8"
-    tgt_color = "#F58518"
-
-    fig, ax = plt.subplots(figsize=(10, 8), dpi=dpi)
-    ax.scatter(
-        Zs[:, 0], Zs[:, 1],
-        s=24, marker="o",
-        facecolors=src_color, edgecolors="white",
-        linewidths=0.6, alpha=0.95, zorder=2, label="source_domain"
-    )
-    ax.scatter(
-        Zt[:, 0], Zt[:, 1],
-        s=34, marker="^",
-        facecolors=tgt_color, edgecolors="white",
-        linewidths=0.6, alpha=0.95, zorder=3, label="target_domain"
-    )
-
-    ax.set_title(title, fontsize=16)
-    ax.set_xlabel("t-SNE dim 1"); ax.set_ylabel("t-SNE dim 2")
-    ax.grid(True, alpha=0.25)
-    ax.legend()
-    _ensure_dir(out_png)
-    fig.tight_layout()
-    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-    return out_png
 
 
 def plot_tsne_after_adaptation(source_latent: np.ndarray,
@@ -447,6 +370,88 @@ def plot_tsne_after_adaptation(source_latent: np.ndarray,
 
 # [建议新增] in src/core/viz.py at the end of the file
 
+# def plot_tsne_by_class(source_latent: np.ndarray,
+#                        target_latent: np.ndarray,
+#                        source_labels: np.ndarray,
+#                        target_labels: np.ndarray,
+#                        class_names: list,
+#                        out_png: str,
+#                        title: str,
+#                        dpi=160):
+#     """
+#     (修正版) 绘制按“故障类别”着色的t-SNE分布图。
+#     - 颜色代表故障类别。
+#     - 标记区分源域 (实心圆) 和目标域 (实心三角)。
+#     - 使用面向对象的API，更稳健。
+#     """
+#     print(f"Generating class-colored t-SNE plot: {title}...")
+#
+#     combined_data = np.vstack((source_latent, target_latent))
+#     perplexity = min(30.0, len(combined_data) - 1)
+#
+#     tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', learning_rate='auto')
+#     tsne_results = tsne.fit_transform(combined_data)
+#
+#     num_source = len(source_latent)
+#     Zs, Zt = tsne_results[:num_source], tsne_results[num_source:]
+#
+#     unique_class_indices = np.unique(np.hstack((source_labels, target_labels)))
+#     colors = plt.cm.get_cmap('tab10', len(class_names))
+#
+#     # --- 核心改动：使用 fig, ax 对象 ---
+#     fig, ax = plt.subplots(figsize=(12, 10))
+#
+#     # 绘制源域数据点
+#     ax.scatter(Zs[:, 0], Zs[:, 1],
+#                c=source_labels, cmap='tab10', marker='o', alpha=0.7,
+#                s=30, linewidths=0.5, edgecolors='w', label="Source Domain")
+#
+#     # 绘制目标域数据点
+#     ax.scatter(Zt[:, 0], Zt[:, 1],
+#                c=target_labels, cmap='tab10', marker='^', alpha=0.9,
+#                s=40, linewidths=0.5, edgecolors='w', label="Target Domain")
+#
+#     ax.set_title(title, fontsize=16)
+#     ax.set_xlabel("t-SNE dimension 1")
+#     ax.set_ylabel("t-SNE dimension 2")
+#
+#     # 创建一个清晰的图例
+#     handles = []
+#     for i, name in enumerate(class_names):
+#         handles.append(mpatches.Patch(color=colors(i), label=name))
+#
+#     source_handle = plt.Line2D([0], [0], marker='o', color='w', label='Source Domain',
+#                                markerfacecolor='grey', markersize=10)
+#     target_handle = plt.Line2D([0], [0], marker='^', color='w', label='Target Domain',
+#                                markerfacecolor='grey', markersize=10)
+#     handles.extend([source_handle, target_handle])
+#
+#     ax.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left', title="Classes & Domains")
+#
+#     _ensure_dir(out_png)
+#     fig.tight_layout(rect=[0, 0, 0.85, 1])
+#     fig.savefig(out_png, dpi=dpi)
+#     plt.close(fig)  # 确保关闭图形对象
+#     return out_png
+
+def plot_tsne_distribution(source_data: np.ndarray, target_data: np.ndarray, out_png: str, title: str, dpi=300):
+    combined_data = np.vstack((source_data, target_data))
+    perplexity = float(max(5, min(30, len(combined_data) - 1)))
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', verbose=0, learning_rate='auto')
+    tsne_results = tsne.fit_transform(combined_data)
+    n_src = len(source_data)
+    Zs, Zt = tsne_results[:n_src], tsne_results[n_src:]
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=dpi)
+    ax.scatter(Zs[:, 0], Zs[:, 1], c='blue', alpha=0.5, label="source_domain")
+    ax.scatter(Zt[:, 0], Zt[:, 1], c='red', alpha=0.5, label="target_domain")
+    ax.set_title(title, fontsize=16)
+    ax.legend()
+    _ensure_dir(out_png)
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    return out_png
+
 def plot_tsne_by_class(source_latent: np.ndarray,
                        target_latent: np.ndarray,
                        source_labels: np.ndarray,
@@ -455,58 +460,29 @@ def plot_tsne_by_class(source_latent: np.ndarray,
                        out_png: str,
                        title: str,
                        dpi=160):
-    """
-    (修正版) 绘制按“故障类别”着色的t-SNE分布图。
-    - 颜色代表故障类别。
-    - 标记区分源域 (实心圆) 和目标域 (实心三角)。
-    - 使用面向对象的API，更稳健。
-    """
     print(f"Generating class-colored t-SNE plot: {title}...")
-
     combined_data = np.vstack((source_latent, target_latent))
     perplexity = min(30.0, len(combined_data) - 1)
-
     tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', learning_rate='auto')
     tsne_results = tsne.fit_transform(combined_data)
-
     num_source = len(source_latent)
     Zs, Zt = tsne_results[:num_source], tsne_results[num_source:]
-
     unique_class_indices = np.unique(np.hstack((source_labels, target_labels)))
+    # 使用 'tab10' colormap 匹配论文风格
     colors = plt.cm.get_cmap('tab10', len(class_names))
-
-    # --- 核心改动：使用 fig, ax 对象 ---
     fig, ax = plt.subplots(figsize=(12, 10))
-
-    # 绘制源域数据点
-    ax.scatter(Zs[:, 0], Zs[:, 1],
-               c=source_labels, cmap='tab10', marker='o', alpha=0.7,
-               s=30, linewidths=0.5, edgecolors='w', label="Source Domain")
-
-    # 绘制目标域数据点
-    ax.scatter(Zt[:, 0], Zt[:, 1],
-               c=target_labels, cmap='tab10', marker='^', alpha=0.9,
-               s=40, linewidths=0.5, edgecolors='w', label="Target Domain")
-
+    ax.scatter(Zs[:, 0], Zs[:, 1], c=colors(source_labels), marker='o', alpha=0.7, s=30, linewidths=0.5, edgecolors='w')
+    ax.scatter(Zt[:, 0], Zt[:, 1], c=colors(target_labels), marker='^', alpha=0.9, s=40, linewidths=0.5, edgecolors='w')
     ax.set_title(title, fontsize=16)
     ax.set_xlabel("t-SNE dimension 1")
     ax.set_ylabel("t-SNE dimension 2")
-
-    # 创建一个清晰的图例
-    handles = []
-    for i, name in enumerate(class_names):
-        handles.append(mpatches.Patch(color=colors(i), label=name))
-
-    source_handle = plt.Line2D([0], [0], marker='o', color='w', label='Source Domain',
-                               markerfacecolor='grey', markersize=10)
-    target_handle = plt.Line2D([0], [0], marker='^', color='w', label='Target Domain',
-                               markerfacecolor='grey', markersize=10)
+    handles = [mpatches.Patch(color=colors(i), label=name) for i, name in enumerate(class_names)]
+    source_handle = Line2D([0], [0], marker='o', color='w', label='Source Domain', markerfacecolor='grey', markersize=10)
+    target_handle = Line2D([0], [0], marker='^', color='w', label='Target Domain', markerfacecolor='grey', markersize=10)
     handles.extend([source_handle, target_handle])
-
     ax.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left', title="Classes & Domains")
-
     _ensure_dir(out_png)
     fig.tight_layout(rect=[0, 0, 0.85, 1])
     fig.savefig(out_png, dpi=dpi)
-    plt.close(fig)  # 确保关闭图形对象
+    plt.close(fig)
     return out_png

@@ -1,0 +1,42 @@
+# src/models/clf/XGBoost/params_32k.yaml
+task: clf
+dataset:
+  # 【修改点 1】让模型读取 32kHz 版本的新特征文件
+  path: outputs/data/artifacts/features_32k.parquet
+  target: fault_type
+
+split:
+  n_splits: 10 # 建议使用上次修正的10折，以确保所有类别都在验证集中
+
+model:
+  name: XGBoost
+  params:
+    objective: 'multi:softprob'         # 保留这些非优化的基础参数
+    eval_metric: 'mlogloss'             # 保留
+    tree_method: 'gpu_hist'             # 保留
+    use_label_encoder: False            # 保留
+    # --- 以下为从JSON文件中更新的优化参数 ---
+    n_estimators: 600
+    max_depth: 10
+    learning_rate: 0.15967811700137619
+    subsample: 0.7995540718254053
+    colsample_bytree: 0.7382093078240549
+    gamma: 0.0003188285481211528
+    reg_alpha: 2.297801948553919e-07
+    reg_lambda: 0.16144226070015733
+
+eval:
+  metrics: [ACC, F1, ROC_AUC]
+
+viz:
+  enabled: true
+  dpi: 160
+  plots:
+    cm: true
+
+outputs:
+  base_dir: outputs
+  # 【修改点 2】为所有输出文件（模型、报告、预测结果）指定一个新的标签
+  tag: source_xgb_baseline_32k
+
+seed: 42

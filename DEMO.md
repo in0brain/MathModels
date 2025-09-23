@@ -26,6 +26,36 @@ python -m src.pipelines.transfer_dann_pipeline --config runs/transfer_dann.yaml
 python -m src.pipelines.interpretability_pipeline --config runs/interpret_tca_shap.yaml
 ```
 
+```bash
+# 1. 加载和结构化原始数据 (.mat -> manifest.csv + parquet)
+python -m src.pipelines.preprocess_pipeline --config src/preprocessing/signal/steps_load_data.yaml
+
+# 2. 提取用于训练源域模型(XGBoost)的混合手工特征 (td, fd, env, cwt)
+python -m src.pipelines.preprocess_pipeline --config src/preprocessing/signal/steps_feature_extraction.yaml
+
+# 3. 训练源域诊断模型 (XGBoost)
+python -m src.pipelines.clf_pipeline --config src/models/clf/XGBoost/params.yaml
+
+# 3.1 (预处理) 将原始信号转换为二维时频图
+python -m src.pipelines.preprocess_pipeline --config src/preprocessing/signal/steps_feature_extraction_image.yaml
+# 3.2 (迁移) 执行基于2D-CNN的DANN迁移学习，对目标域进行诊断和标定
+python -m src.pipelines.transfer_dann_pipeline --config runs/transfer_dann_2d.yaml
+
+# 方案B: 基于原始信号的端到端DANN+MHDCNN迁移 (备选方案)
+python -m src.pipelines.transfer_dann_raw_signal_pipeline --config runs/transfer_dann_mhdcnn_raw.yaml
+
+# 方案C: 基于1D手工特征的DANN+MHDCNN迁移 (对比方案)
+python -m src.pipelines.transfer_dann_1d_pipeline --config runs/transfer_dann_mhdcnn_1d.yaml
+
+# 4. 生成SHAP图，对基于手工特征的XGBoost模型进行事后可解释性分析
+
+python -m src.pipelines.interpretability_pipeline --config runs/interpret_tca_shap.yaml
+
+# (可选) 5. 对DANN模型进行可解释性分析
+python -m src.pipelines.dann_interpretability_pipeline --config runs/interpret_dann_shap.yaml
+
+```
+
 
 
 ## 1.项目模块概览

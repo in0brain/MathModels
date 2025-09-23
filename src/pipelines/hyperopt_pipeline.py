@@ -1,60 +1,92 @@
-# -*- coding: utf-8 -*-
+# src/pipelines/hyperopt_pipeline.py
 import argparse, json, os
-import numpy as np, pandas as pd, optuna
-from sklearn.model_selection import cross_val_score, KFold
-from sklearn.metrics import make_scorer, mean_absolute_error
-from xgboost import XGBRegressor  # 例子：回归（可按需换成分类）
-from src.core import io  # 你的 IO 工具:contentReference[oaicite:14]{index=14}
+import pandas as pd
+import optuna
+import yaml
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.preprocessing import LabelEncoder
+from xgboost import XGBClassifier
+from src.core import io  # Import the project's IO utility
+
 
 def run(cfg_path: str):
-    import yaml
-    cfg = yaml.safe_load(open(cfg_path, "r", encoding="utf-8"))
+    """
+    Runs hyperparameter optimization for a CLASSIFICATION task using Optuna.
+    """
+    # 1. Load Configuration
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
 
     path = cfg["dataset"]["path"]
     target = cfg["dataset"]["target"]
     out_dir = cfg["report"]["out_dir"]
     os.makedirs(out_dir, exist_ok=True)
 
-    df = pd.read_csv(path)
-    y = df[target].values
-    X = df.drop(columns=[target]).values
+    # 2. Load and Prepare Data using the correct reader
+    print(f"Loading data from: {path}")
+    df_full = io.read_table(path)
 
+    # Filter for source domain and select features
+    df = df_full[df_full['domain'] == 'source'].copy()
+    feature_cols = [col for col in df.columns if col.startswith(('td_', 'fd_', 'env_', 'cwt_'))]
+    X = df[feature_cols].values
+
+    # Encode string labels to integers
+    le = LabelEncoder()
+    y = le.fit_transform(df[target])
+
+    print(f"Data prepared for hyperparameter optimization. Feature shape: {X.shape}")
+
+    # 3. Configure Cross-Validation
     n_splits = int(cfg.get("cv", {}).get("n_splits", 5))
-    cv = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
+    # 4. Define the Objective Function for Optuna
     def objective(trial: optuna.Trial):
+        # Define the hyperparameter search space
         params = {
-            "n_estimators": trial.suggest_int("n_estimators", 200, 1200, step=100),
-            "max_depth": trial.suggest_int("max_depth", 3, 12),
-            "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.2, log=True),
+            "n_estimators": trial.suggest_int("n_estimators", 200, 1000, step=100),
+            "max_depth": trial.suggest_int("max_depth", 4, 10),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.3, log=True),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10, log=True),
-            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 1e-1, log=True),
+            "gamma": trial.suggest_float("gamma", 0.0, 1.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 1.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 1.0, log=True),
+            "use_label_encoder": False,
+            "eval_metric": 'mlogloss',
             "random_state": 42,
-            "tree_method": "hist",
+            "tree_method": "gpu_hist",  # Assuming GPU is available
         }
-        model = XGBRegressor(**params)
-        # 评价用 MAE（越小越好），Optuna 默认最小化
-        scores = -cross_val_score(
-            model, X, y,
-            scoring=make_scorer(mean_absolute_error, greater_is_better=False),
-            cv=cv, n_jobs=-1
-        )
-        return np.mean(scores)
 
-    study = optuna.create_study(direction="minimize")
+        model = XGBClassifier(**params)
+
+        # Use cross-validation to get a robust estimate of the accuracy
+        scores = cross_val_score(model, X, y, scoring="accuracy", cv=cv, n_jobs=-1)
+
+        return scores.mean()
+
+    # 5. Run the Optimization
+    # We want to MAXIMIZE accuracy, so the direction is "maximize"
+    study = optuna.create_study(direction="maximize")
+    print(f"Starting Optuna optimization with {cfg.get('trials', 30)} trials...")
     study.optimize(objective, n_trials=int(cfg.get("trials", 30)))
 
-    # 保存结果
+    # 6. Save the Results
     best = {
-        "best_value": study.best_value,
+        "best_value (accuracy)": study.best_value,
         "best_params": study.best_params,
         "trials": len(study.trials),
     }
-    with open(os.path.join(out_dir, "hyperopt_best.json"), "w", encoding="utf-8") as f:
+
+    report_path = os.path.join(out_dir, "hyperopt_best.json")
+    with open(report_path, "w", encoding="utf-8") as f:
         json.dump(best, f, ensure_ascii=False, indent=2)
-    print("[hyperopt] best:", best)
+
+    print(f"\nOptimization finished! Best parameters found:")
+    print(best)
+    print(f"Results saved to: {report_path}")
+
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

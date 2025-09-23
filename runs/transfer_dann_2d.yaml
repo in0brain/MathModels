@@ -1,20 +1,30 @@
-# [新文件] runs/transfer_dann_2d.yaml
+# 任务配置
+# 任务名也更新以反映这是一个处理2D图像的任务
 task: transfer_diagnosis_dann_2d
+
+# 输入文件
+# 将 'features_path' 替换为 'image_manifest_path' 并指向正确的图像清单文件
 image_manifest_path: "outputs/data/artifacts/image_manifest.csv"
 label_encoder_path: "outputs/models/source_xgb_baseline_label_encoder.pkl"
+
+# DANN 模型与训练参数 (这里保持不变，因为模型结构是在 build.py 中定义的)
 model:
   name: "DANN"
-  # 2D-CNN架构是固定的，不再需要配置
+  feature_extractor_type: "CNN2D"
+  input_dim: 4096
   label_predictor_arch: [512, 128]
   domain_discriminator_arch: [512, 128]
+
 training_params:
   learning_rate: 0.0002
   num_epochs: 100
-  batch_size: 64 # 图像处理更耗内存，减小batch_size
+  batch_size: 64 # 图像处理更耗内存，建议使用较小的batch_size
   adversarial_lambda: 0.5
+
+# 输出配置 (修改tag以区分实验)
 outputs:
   base_dir: "outputs"
-  tag: "dann_2d_v1"
-  model_path: "outputs/models/dann_2d_final_model.pth"
+  tag: "dann_dcnn_2d" # 您可以保持这个tag
+  model_path: "outputs/models/dann_mhdcnn_final_model.pth"
   target_predictions_path: "outputs/predictions/DANN/target_preds_dann_2d.csv"
   visualization_path: "outputs/figs/transfer/tsne_after_dann_2d.png"

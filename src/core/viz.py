@@ -34,15 +34,11 @@ def plot_transition_heatmap(P: np.ndarray, labels, out_png: str, dpi=160):
     out_png: 输出文件路径
     """
     fig, ax = plt.subplots()
-    # 显示概率矩阵为热力图
     im = ax.imshow(P, aspect="auto", origin="upper")
-    # 设置坐标轴标签
     ax.set_xticks(range(len(labels))); ax.set_xticklabels(labels)
     ax.set_yticks(range(len(labels))); ax.set_yticklabels(labels)
     ax.set_title("Transition Matrix (Heatmap)")
-    # 添加颜色条
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    # 保存并关闭
     _ensure_dir(out_png)
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
@@ -53,10 +49,10 @@ def plot_sequence_compare(y_true, y_pred, out_png: str, dpi=160):
     序列对比图（真实 vs 预测）
     将离散状态映射为整数，方便绘制折线对比
     """
-    uniq = sorted(set(list(y_true) + list(y_pred)))   # 全部可能状态
-    idx = {s: i for i, s in enumerate(uniq)}         # 状态->整数映射
-    yt = [idx[s] for s in y_true]                    # 真实序列映射
-    yp = [idx[s] for s in y_pred]                    # 预测序列映射
+    uniq = sorted(set(list(y_true) + list(y_pred)))
+    idx = {s: i for i, s in enumerate(uniq)}
+    yt = [idx[s] for s in y_true]
+    yp = [idx[s] for s in y_pred]
 
     fig, ax = plt.subplots()
     ax.plot(yt, label="true", linewidth=1)
@@ -74,16 +70,13 @@ def plot_sequence_compare(y_true, y_pred, out_png: str, dpi=160):
 def plot_feature_importance(importances, feature_names, out_png, dpi=160, top=30):
     """
     特征重要性条形图
-    importances: 特征重要性数组
-    feature_names: 特征名列表
-    top: 只取前 top 个
     """
     imp = np.asarray(importances)
-    idx = np.argsort(imp)[::-1][:top]     # 排序取前 top
-    names = np.array(feature_names)[idx]  # 对应特征名
-    vals = imp[idx]                       # 对应重要性
+    idx = np.argsort(imp)[::-1][:top]
+    names = np.array(feature_names)[idx]
+    vals = imp[idx]
     fig, ax = plt.subplots()
-    ax.barh(range(len(vals)), vals[::-1])  # 反转画水平条形图
+    ax.barh(range(len(vals)), vals[::-1])
     ax.set_yticks(range(len(vals))); ax.set_yticklabels(names[::-1], fontsize=8)
     ax.set_title("Feature Importance")
     _ensure_dir(out_png)
@@ -94,11 +87,10 @@ def plot_feature_importance(importances, feature_names, out_png, dpi=160, top=30
 def plot_residuals(y_true, y_pred, out_png, dpi=160, bins=30):
     """
     残差直方图
-    y_true - y_pred
     """
-    res = np.asarray(y_true) - np.asarray(y_pred)   # 计算残差
+    res = np.asarray(y_true) - np.asarray(y_pred)
     fig, ax = plt.subplots()
-    ax.hist(res, bins=bins)                         # 绘制直方图
+    ax.hist(res, bins=bins)
     ax.set_title("Residuals")
     _ensure_dir(out_png)
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
@@ -111,9 +103,9 @@ def plot_pred_scatter(y_true, y_pred, out_png, dpi=160):
     """
     yt = np.asarray(y_true); yp = np.asarray(y_pred)
     fig, ax = plt.subplots()
-    ax.scatter(yt, yp, s=10)                        # 散点
-    lims = [min(yt.min(), yp.min()), max(yt.max(), yp.max())]  # 对角线范围
-    ax.plot(lims, lims, linestyle="--")             # y=x 参考线
+    ax.scatter(yt, yp, s=10)
+    lims = [min(yt.min(), yp.min()), max(yt.max(), yp.max())]
+    ax.plot(lims, lims, linestyle="--")
     ax.set_xlabel("True"); ax.set_ylabel("Pred")
     ax.set_title("Prediction vs True")
     _ensure_dir(out_png)
@@ -128,20 +120,18 @@ from sklearn.metrics import roc_curve, auc, precision_recall_curve, confusion_ma
 def plot_roc(y_true, proba, classes, out_png, dpi=160):
     """
     ROC 曲线
-    - 二分类：绘制单条曲线
-    - 多分类：一对多绘制多条
     """
     fig, ax = plt.subplots()
     y_true = np.asarray(y_true)
-    if proba.shape[1] == 2:   # 二分类情况
+    if proba.shape[1] == 2:
         fpr, tpr, _ = roc_curve(y_true, proba[:,1])
         ax.plot(fpr, tpr, label=f"AUC={auc(fpr,tpr):.3f}")
-    else:                     # 多分类情况
+    else:
         for i, c in enumerate(classes):
-            y_bin = (y_true == c).astype(int)       # 当前类 vs 其他类
+            y_bin = (y_true == i).astype(int) # Assuming y_true is encoded
             fpr, tpr, _ = roc_curve(y_bin, proba[:, i])
             ax.plot(fpr, tpr, label=f"class {c} AUC={auc(fpr,tpr):.3f}")
-    ax.plot([0,1],[0,1],"--")                       # 随机分类参考线
+    ax.plot([0,1],[0,1],"--")
     ax.set_xlabel("FPR"); ax.set_ylabel("TPR"); ax.set_title("ROC")
     ax.legend(fontsize=8)
     _ensure_dir(out_png)
@@ -155,12 +145,12 @@ def plot_pr(y_true, proba, classes, out_png, dpi=160):
     """
     fig, ax = plt.subplots()
     y_true = np.asarray(y_true)
-    if proba.shape[1] == 2:   # 二分类
+    if proba.shape[1] == 2:
         prec, rec, _ = precision_recall_curve(y_true, proba[:,1])
         ax.plot(rec, prec)
-    else:                     # 多分类
+    else:
         for i, c in enumerate(classes):
-            y_bin = (y_true == c).astype(int)
+            y_bin = (y_true == i).astype(int)
             prec, rec, _ = precision_recall_curve(y_bin, proba[:, i])
             ax.plot(rec, prec, label=f"class {c}")
         ax.legend(fontsize=8)
@@ -174,14 +164,10 @@ def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160,
                           annot_size=14, cmap="magma"):
     """
     混淆矩阵
-    - 横轴：预测
-    - 纵轴：真实
     """
     cm = confusion_matrix(y_true, y_pred, labels=classes)
-
     fig, ax = plt.subplots(figsize=(6, 6), dpi=dpi)
     im = ax.imshow(cm, interpolation="nearest", aspect="auto", cmap=cmap)
-
     ax.set_xticks(range(len(classes)))
     ax.set_yticks(range(len(classes)))
     ax.set_xticklabels(classes, rotation=45, ha="right")
@@ -190,7 +176,6 @@ def plot_confusion_matrix(y_true, y_pred, classes, out_png, dpi=160,
     ax.set_ylabel("True", fontsize=12)
     ax.set_title("Confusion Matrix", fontsize=14, weight="bold")
 
-    # 在每个格子中标数值
     max_val = cm.max()
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
@@ -227,7 +212,6 @@ def plot_multi_roc_compare(results: dict, out_png: str, dpi=160):
     return out_png
 
 def plot_reg_compare(rows, metric: str, out_png: str, dpi=160):
-    # rows: [{'model': 'xgb_baseline', 'MAE':..., 'RMSE':..., 'R2':...}, ...]
     models = [r['model'] for r in rows]
     values = [r.get(metric) for r in rows]
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -267,7 +251,7 @@ def plot_shap_summary_bar(shap_values, features_df, class_names, out_png: str, d
     return out_png
 
 def plot_shap_waterfall_new(explanation_object, out_png: str, max_display=15, dpi=160):
-    """(新增) 绘制并保存单个样本的SHAP瀑布图，接收一个SHAP Explanation对象。"""
+    """绘制并保存单个样本的SHAP瀑布图，接收一个SHAP Explanation对象。"""
     plt.figure()
     shap.plots.waterfall(explanation_object, max_display=max_display, show=False)
     fig = plt.gcf()
@@ -472,53 +456,57 @@ def plot_tsne_by_class(source_latent: np.ndarray,
                        title: str,
                        dpi=160):
     """
-    (新增) 绘制按“故障类别”着色的t-SNE分布图。
+    (修正版) 绘制按“故障类别”着色的t-SNE分布图。
     - 颜色代表故障类别。
     - 标记区分源域 (实心圆) 和目标域 (实心三角)。
+    - 使用面向对象的API，更稳健。
     """
     print(f"Generating class-colored t-SNE plot: {title}...")
 
     combined_data = np.vstack((source_latent, target_latent))
-
-    # 初始化t-SNE
     perplexity = min(30.0, len(combined_data) - 1)
+
     tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity, init='pca', learning_rate='auto')
     tsne_results = tsne.fit_transform(combined_data)
 
     num_source = len(source_latent)
-    unique_labels = np.unique(np.hstack((source_labels, target_labels)))
-    colors = plt.cm.get_cmap('tab10', len(unique_labels))
+    Zs, Zt = tsne_results[:num_source], tsne_results[num_source:]
 
-    plt.figure(figsize=(12, 10))
+    unique_class_indices = np.unique(np.hstack((source_labels, target_labels)))
+    colors = plt.cm.get_cmap('tab10', len(class_names))
 
-    # 绘制数据点
-    # 源域
-    plt.scatter(tsne_results[:num_source, 0], tsne_results[:num_source, 1],
-                c=source_labels, cmap='tab10', marker='o', alpha=0.7, s=30, linewidths=0.5, edgecolors='w')
-    # 目标域
-    plt.scatter(tsne_results[num_source:, 0], tsne_results[num_source:, 1],
-                c=target_labels, cmap='tab10', marker='^', alpha=0.9, s=40, linewidths=0.5, edgecolors='w')
+    # --- 核心改动：使用 fig, ax 对象 ---
+    fig, ax = plt.subplots(figsize=(12, 10))
 
-    plt.title(title, fontsize=16)
-    plt.xlabel("t-SNE dimension 1")
-    plt.ylabel("t-SNE dimension 2")
+    # 绘制源域数据点
+    ax.scatter(Zs[:, 0], Zs[:, 1],
+               c=source_labels, cmap='tab10', marker='o', alpha=0.7,
+               s=30, linewidths=0.5, edgecolors='w', label="Source Domain")
+
+    # 绘制目标域数据点
+    ax.scatter(Zt[:, 0], Zt[:, 1],
+               c=target_labels, cmap='tab10', marker='^', alpha=0.9,
+               s=40, linewidths=0.5, edgecolors='w', label="Target Domain")
+
+    ax.set_title(title, fontsize=16)
+    ax.set_xlabel("t-SNE dimension 1")
+    ax.set_ylabel("t-SNE dimension 2")
 
     # 创建一个清晰的图例
     handles = []
     for i, name in enumerate(class_names):
         handles.append(mpatches.Patch(color=colors(i), label=name))
 
-    # 添加领域标记的图例
     source_handle = plt.Line2D([0], [0], marker='o', color='w', label='Source Domain',
                                markerfacecolor='grey', markersize=10)
     target_handle = plt.Line2D([0], [0], marker='^', color='w', label='Target Domain',
                                markerfacecolor='grey', markersize=10)
     handles.extend([source_handle, target_handle])
 
-    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left', title="Classes & Domains")
+    ax.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left', title="Classes & Domains")
 
     _ensure_dir(out_png)
-    plt.tight_layout(rect=[0, 0, 0.85, 1])  # 为图例留出空间
-    plt.savefig(out_png, dpi=dpi)
-    plt.close()
+    fig.tight_layout(rect=[0, 0, 0.85, 1])
+    fig.savefig(out_png, dpi=dpi)
+    plt.close(fig)  # 确保关闭图形对象
     return out_png

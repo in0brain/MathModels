@@ -1,7 +1,6 @@
 # src/models/clf/SVM/params.yaml
 task: clf
 dataset:
-  # 【MODIFIED】 Point to the 32kHz feature file
   path: "outputs/data/artifacts/features_32k.parquet"
   target: fault_type
   feature_prefixes: ["td_", "fd_", "env_", "cwt_"]
@@ -15,6 +14,8 @@ model:
     C: 1.0
     kernel: 'rbf'
     gamma: 'scale'
+    # --- THIS IS THE FIX ---
+    # Explicitly enable probability estimates.
     probability: true
 
 eval:
@@ -22,7 +23,6 @@ eval:
 
 outputs:
   base_dir: outputs
-  # 【MODIFIED】 Update the tag for 32kHz experiment outputs
   tag: "svm_baseline_32k"
 
 seed: 42

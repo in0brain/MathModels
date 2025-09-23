@@ -3,10 +3,11 @@ import argparse, json, os
 import pandas as pd
 import optuna
 import yaml
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+# 【FIX】 Import StratifiedGroupKFold instead of StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
-from src.core import io  # Import the project's IO utility
+from src.core import io
 
 
 def run(cfg_path: str):
@@ -22,16 +23,17 @@ def run(cfg_path: str):
     out_dir = cfg["report"]["out_dir"]
     os.makedirs(out_dir, exist_ok=True)
 
-    # 2. Load and Prepare Data using the correct reader
+    # 2. Load and Prepare Data
     print(f"Loading data from: {path}")
     df_full = io.read_table(path)
 
-    # Filter for source domain and select features
     df = df_full[df_full['domain'] == 'source'].copy()
     feature_cols = [col for col in df.columns if col.startswith(('td_', 'fd_', 'env_', 'cwt_'))]
-    X = df[feature_cols].values
+    X = df[feature_cols]  # Keep as DataFrame for now
 
-    # Encode string labels to integers
+    # 【FIX】 Keep original_file for grouping
+    groups = df["original_file"]
+
     le = LabelEncoder()
     y = le.fit_transform(df[target])
 
@@ -39,11 +41,11 @@ def run(cfg_path: str):
 
     # 3. Configure Cross-Validation
     n_splits = int(cfg.get("cv", {}).get("n_splits", 5))
-    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    # 【FIX】 Use the correct, non-leaky cross-validator
+    cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
     # 4. Define the Objective Function for Optuna
     def objective(trial: optuna.Trial):
-        # Define the hyperparameter search space
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 200, 1000, step=100),
             "max_depth": trial.suggest_int("max_depth", 4, 10),
@@ -56,21 +58,20 @@ def run(cfg_path: str):
             "use_label_encoder": False,
             "eval_metric": 'mlogloss',
             "random_state": 42,
-            "tree_method": "gpu_hist",  # Assuming GPU is available
+            "tree_method": "gpu_hist",
         }
 
         model = XGBClassifier(**params)
 
-        # Use cross-validation to get a robust estimate of the accuracy
-        scores = cross_val_score(model, X, y, scoring="accuracy", cv=cv, n_jobs=-1)
+        # 【FIX】 Pass the groups to cross_val_score
+        scores = cross_val_score(model, X, y, scoring="accuracy", cv=cv, n_jobs=-1, groups=groups)
 
         return scores.mean()
 
     # 5. Run the Optimization
-    # We want to MAXIMIZE accuracy, so the direction is "maximize"
     study = optuna.create_study(direction="maximize")
     print(f"Starting Optuna optimization with {cfg.get('trials', 30)} trials...")
-    study.optimize(objective, n_trials=int(cfg.get("trials", 30)))
+    study.optimize(objective, n_trials=int(cfg.get('trials', 30)))
 
     # 6. Save the Results
     best = {
@@ -80,8 +81,7 @@ def run(cfg_path: str):
     }
 
     report_path = os.path.join(out_dir, "hyperopt_best.json")
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(best, f, ensure_ascii=False, indent=2)
+    io.save_json(best, report_path)
 
     print(f"\nOptimization finished! Best parameters found:")
     print(best)

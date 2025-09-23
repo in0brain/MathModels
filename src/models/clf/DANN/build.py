@@ -48,6 +48,24 @@ class CNN1DFeatureExtractor(nn.Module):
         x = x.view(x.size(0), -1)
         return x
 
+# 定义一个SE（注意力）模块
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
 
 # ----------------- 2. [图像方案] 2D-CNN 特征提取器 (保留) -----------------
 class CNN2DFeatureExtractor(nn.Module):
@@ -61,6 +79,9 @@ class CNN2DFeatureExtractor(nn.Module):
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
         )
+        # --在最后一个卷积块后加入SELayer--
+        self.se_block = SELayer(channel=64)  # 最后一层卷积输出通道是64
+        #----
         self.flattened_dim = 64 * 8 * 8
 
     def forward(self, x):
@@ -151,7 +172,8 @@ class DANNModel(nn.Module):
         label_output = self.label_predictor(features)
         reversed_features = grad_reverse(features, lambda_)
         domain_output = self.domain_discriminator(reversed_features)
-        return label_output, domain_output
+        # --- 新增返回项 ---
+        return label_output, domain_output, features
 
 
 # ----------------- 框架集成接口 (保持不变) -----------------

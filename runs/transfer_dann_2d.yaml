@@ -20,6 +20,7 @@ training_params:
   num_epochs: 100
   batch_size: 64 # 图像处理更耗内存，建议使用较小的batch_size
   adversarial_lambda: 0.5
+  mmd_lambda: 1.0 # 新增：MMD损失权重，可调
 
 # 输出配置 (修改tag以区分实验)
 outputs:

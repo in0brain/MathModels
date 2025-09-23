@@ -1,9 +1,10 @@
 # src/models/clf/SVM/params.yaml
 task: clf
 dataset:
-  path: "" # 这个路径将由对比流水线动态提供
+  # 【MODIFIED】 Point to the 32kHz feature file
+  path: "outputs/data/artifacts/features_32k.parquet"
   target: fault_type
-  feature_prefixes: ["td_"] # 特征前缀，将被流水线动态修改
+  feature_prefixes: ["td_", "fd_", "env_", "cwt_"]
 
 split:
   n_splits: 5
@@ -14,12 +15,14 @@ model:
     C: 1.0
     kernel: 'rbf'
     gamma: 'scale'
+    probability: true
 
 eval:
-  metrics: [ACC, F1]
+  metrics: [ACC, F1, ROC_AUC]
 
 outputs:
   base_dir: outputs
-  tag: "" # 实验标签，将由对比流水线动态提供
+  # 【MODIFIED】 Update the tag for 32kHz experiment outputs
+  tag: "svm_baseline_32k"
 
 seed: 42

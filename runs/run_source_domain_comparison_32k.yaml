@@ -1,0 +1,7 @@
+# runs/run_source_domain_comparison_32k.yaml
+# Defines the list of model configurations for the 32kHz data comparison.
+configs:
+  # 1. XGBoost model trained on 32kHz data (using your optimized params)
+  - src/models/clf/XGBoost/params_32k.yaml
+  # 2. SVM model trained on 32kHz data (using the modified params file)
+  - src/models/clf/SVM/params.yaml

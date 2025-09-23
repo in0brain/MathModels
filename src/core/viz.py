@@ -486,3 +486,34 @@ def plot_tsne_by_class(source_latent: np.ndarray,
     fig.savefig(out_png, dpi=dpi)
     plt.close(fig)
     return out_png
+
+def plot_clf_compare(rows, metric: str, out_png: str, dpi=160):
+    """
+    绘制多个分类模型在指定指标上的性能对比条形图。
+
+    参数:
+        rows (list of dict): 一个字典列表，每个字典包含模型名和各项指标，
+                             例如 [{'model': 'XGBoost', 'ACC': 0.95, 'F1': 0.94}, ...]
+        metric (str): 要对比的指标名 (例如 "ACC", "F1").
+        out_png (str): 输出PNG文件路径。
+        dpi (int): 图像分辨率。
+    """
+    models = [r['model'] for r in rows]
+    values = [r.get(metric) for r in rows]
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.bar(models, values)
+    ax.set_title(f"Model Comparison - {metric}")
+    ax.set_ylabel(metric)
+    ax.set_ylim(0, 1.05) # 分类指标通常在0-1之间
+
+    # 在条形图上添加数值标签
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2.0, yval, f'{yval:.3f}', va='bottom', ha='center')
+
+    _ensure_dir(out_png)
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=dpi)
+    plt.close(fig)
+    return out_png
+

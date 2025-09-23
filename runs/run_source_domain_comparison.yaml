@@ -1,0 +1,7 @@
+# runs/run_source_domain_comparison.yaml
+# 定义要进行横向对比的源域诊断模型配置文件列表
+configs:
+  # 方案一：XGBoost 模型
+  - src/models/clf/XGBoost/params_32k.yaml
+  # 方案二：SVM 模型
+  - src/models/clf/SVM/params.yaml

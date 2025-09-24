@@ -86,7 +86,17 @@ def run(config_path: str):
     # --- 3. 构建模型和优化器 ---
     print("步骤3: 构建DANN模型和优化器...")
     model = dann_builder.build(cfg, num_classes).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg['training_params']['learning_rate'])
+    # 采用之前的差分学习率
+    base_lr = cfg['training_params']['learning_rate']
+    optimizer = torch.optim.Adam([
+        # 为特征提取器设置一个学习率
+        {'params': model.feature_extractor.parameters(), 'lr': base_lr},
+        # 为标签分类器设置同样学习率
+        {'params': model.label_predictor.parameters(), 'lr': base_lr},
+        # 【关键】为领域判别器设置一个更慢的学习率，例如0.1倍
+        {'params': model.domain_discriminator.parameters(), 'lr': base_lr * 0.1},
+    ])
+
     class_counts = np.bincount(ys, minlength=num_classes)
     class_counts = np.where(class_counts == 0, 1, class_counts)
     class_weights = 1. / torch.tensor(class_counts, dtype=torch.float)
@@ -203,31 +213,62 @@ def run(config_path: str):
     print(f"迁移过程图表已保存至: {plot_path}")
 
     # 8. 绘制t-SNE图
-    print("步骤8: 生成t-SNE可视化图...")
+    print("步骤8: 生成t-SNE可视化图 (通过抽样)...")
     model.eval()
+
+    # 定义一个合理的样本数量，用于可视化
+    SAMPLE_SIZE = 2000  # 从每个域中抽取2000个样本，足以看清分布
+
     with torch.no_grad():
+        # --- 安全地提取源域特征 ---
         source_features_list = []
-        source_loader_eval = DataLoader(source_dataset, batch_size=batch_size, shuffle=False)
-        for (inputs, _) in source_loader_eval:
+        # 【修改1】使用 torch.utils.data.SubsetRandomSampler 进行高效随机抽样
+        source_sampler = torch.utils.data.SubsetRandomSampler(
+            np.random.choice(len(source_dataset), min(SAMPLE_SIZE, len(source_dataset)), replace=False)
+        )
+        source_loader_eval_sampled = DataLoader(source_dataset, batch_size=batch_size, sampler=source_sampler)
+
+        # 我们还需要对应样本的标签
+        ys_sampled = []
+
+        # 这个循环现在只会迭代少量批次
+        for (inputs, labels) in tqdm(source_loader_eval_sampled, desc="Extracting Source Samples"):
             inputs = inputs.to(device)
             _, _, features = model(inputs, lambda_=0)
             source_features_list.append(features.cpu().numpy())
+            ys_sampled.append(labels.cpu().numpy())  # 收集标签
+
         source_features = np.vstack(source_features_list)
+        ys_labels_sampled = np.hstack(ys_sampled)  # 拼接标签
+
+        # --- 安全地提取目标域特征 ---
         target_features_list = []
-        target_loader_eval = DataLoader(target_dataset, batch_size=batch_size, shuffle=False)
-        for (inputs,) in target_loader_eval:
+        # 【修改2】同样对目标域进行抽样
+        target_sampler = torch.utils.data.SubsetRandomSampler(
+            np.random.choice(len(target_dataset), min(SAMPLE_SIZE, len(target_dataset)), replace=False)
+        )
+        target_loader_eval_sampled = DataLoader(target_dataset, batch_size=batch_size, sampler=target_sampler)
+
+        # 同样，我们需要对应样本的预测标签
+        all_preds_sampled_indices = target_sampler.indices
+        all_preds_sampled = np.array(all_preds)[all_preds_sampled_indices]  # 从之前的完整预测中按索引取出
+
+        for (inputs,) in tqdm(target_loader_eval_sampled, desc="Extracting Target Samples"):
             inputs = inputs.to(device)
             _, _, features = model(inputs, lambda_=0)
             target_features_list.append(features.cpu().numpy())
+
         target_features = np.vstack(target_features_list)
+
+    # 【修改3】使用抽样后的数据进行可视化
     viz.plot_tsne_by_class(
         source_latent=source_features,
         target_latent=target_features,
-        source_labels=ys,
-        target_labels=np.array(all_preds),
+        source_labels=ys_labels_sampled,  # 使用抽样样本的真实标签
+        target_labels=all_preds_sampled,  # 使用抽样样本的预测标签
         class_names=list(le.classes_),
         out_png=cfg["outputs"]["visualization_path"],
-        title='Class Distribution After DANN+MMD Adaptation'
+        title='Class Distribution After DANN+MMD Adaptation (Sampled)'
     )
     print(f"[DANN-2D + MMD 混合迁移流水线] 成功运行完毕。")
 
